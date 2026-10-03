@@ -221,6 +221,12 @@ export const api = {
         body: JSON.stringify(body),
       }),
 
+    updateDefenses: (body: AdminDefensesRequest): Promise<AdminDefensesResponse> =>
+      request<AdminDefensesResponse>('/admin/defenses', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
     startDrop: (body: AdminDropStartRequest): Promise<AdminDropStartResponse> =>
       request<AdminDropStartResponse>('/admin/drop/start', {
         method: 'POST',
