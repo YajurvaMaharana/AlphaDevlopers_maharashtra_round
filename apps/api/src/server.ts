@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth';
 import { dropRoutes } from './routes/drop';
 import { adminRoutes } from './routes/admin';
 import { startDropWorker } from './services/drop';
+import { startInventoryWorker } from './services/inventory';
 
 // Setup Fastify with structured logging
 const fastify = Fastify({
@@ -82,6 +83,7 @@ async function start() {
     
     // Start background worker for Drop engine (it handles locking automatically)
     startDropWorker();
+    startInventoryWorker();
     
     // Start fastify listener
     await fastify.listen({ port: parseInt(env.PORT, 10), host: '0.0.0.0' });
