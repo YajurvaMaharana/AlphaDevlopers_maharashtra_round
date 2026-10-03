@@ -1,269 +1,198 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from '../components/Navbar';
-import { WaitingRoomCard } from '../components/WaitingRoomCard';
-import { QueueProgressCard } from '../components/QueueProgressCard';
-import { ReservationCheckoutModal } from '../components/ReservationCheckoutModal';
-import { OrderConfirmationCard } from '../components/OrderConfirmationCard';
-import { BotLabDashboard } from '../components/BotLabDashboard';
-import { SessionManager, UserSessionState } from '../lib/session';
-import { apiClient } from '../lib/api-client';
-import { runClientPoW, PoWSolveProgress } from '../lib/pow-solver';
+import React from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 import {
-  EventConfig,
-  QueueStatus,
-  ReservationGrant,
-  CheckoutResponse,
-  DropPhase,
-  DROP_CONSTANTS
-} from '@fairdrop/shared';
-import { fairDropSimulator } from '../lib/simulation-engine';
+  ShieldCheck,
+  Zap,
+  Dice5,
+  Lock,
+  ArrowRight,
+  Cpu,
+  BarChart3,
+  CheckCircle2,
+  Users,
+  AlertTriangle
+} from 'lucide-react';
 
-export default function FairDropPage() {
-  const [session, setSession] = useState<UserSessionState | null>(null);
-  const [config, setConfig] = useState<EventConfig>(() =>
-    fairDropSimulator.getDropConfig()
-  );
-  const [queueStatus, setQueueStatus] = useState<QueueStatus>(() =>
-    fairDropSimulator.getQueueStatus('initial-client')
-  );
-  const [activeView, setActiveView] = useState<'waiting_room' | 'botlab'>('waiting_room');
-  const [isSolvingPoW, setIsSolvingPoW] = useState(false);
-  const [powProgress, setPowProgress] = useState<PoWSolveProgress | null>(null);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isSSEConnected, setIsSSEConnected] = useState(true);
-
-  // Initialize session from localStorage
-  useEffect(() => {
-    const loaded = SessionManager.load(DROP_CONSTANTS.DEFAULT_EVENT_ID);
-    setSession(loaded);
-
-    // If session already holds an active reservation that hasn't expired, open checkout modal
-    if (
-      loaded.reservationToken &&
-      loaded.reservationExpiresAt &&
-      loaded.reservationExpiresAt > Date.now() &&
-      !loaded.receipt
-    ) {
-      setIsCheckoutOpen(true);
-    }
-  }, []);
-
-  // Subscribe to SSE realtime events
-  useEffect(() => {
-    if (!session) return;
-
-    const unsub = apiClient.subscribeSSE(
-      session.eventId,
-      session.clientId,
-      (type, data) => {
-        setIsSSEConnected(true);
-        if (type === 'DROP_STATUS') {
-          setConfig(data as EventConfig);
-        } else if (type === 'QUEUE_UPDATE') {
-          const qs = data as QueueStatus;
-          setQueueStatus(qs);
-          if (qs.position !== null) {
-            setSession((prev) => {
-              if (!prev) return prev;
-              const next = SessionManager.update(prev, {
-                queuePosition: qs.position,
-                totalInQueue: qs.totalInQueue
-              });
-              return next;
-            });
-          }
-        } else if (type === 'RESERVATION_GRANTED') {
-          const grant = data as ReservationGrant;
-          setSession((prev) => {
-            if (!prev) return prev;
-            const next = SessionManager.update(prev, {
-              reservationToken: grant.reservationToken,
-              seatNumber: grant.seatNumber,
-              reservationExpiresAt: grant.expiresAt
-            });
-            return next;
-          });
-          setIsCheckoutOpen(true);
-        } else if (type === 'SEATS_SOLD_OUT') {
-          setConfig((prev) => ({ ...prev, currentPhase: 'SOLD_OUT', remainingSeats: 0 }));
-        }
-      },
-      () => {
-        setIsSSEConnected(false);
-      }
-    );
-
-    return unsub;
-  }, [session?.clientId, session?.eventId]);
-
-  // Handle entering waiting room with Proof of Work
-  const handleJoinWaitingRoom = async () => {
-    if (!session || isSolvingPoW) return;
-
-    try {
-      setIsSolvingPoW(true);
-      // 1. Fetch PoW challenge
-      const challenge = await apiClient.getPoWChallenge(session.eventId);
-
-      // 2. Solve PoW in client browser thread
-      const solution = await runClientPoW(challenge, (progress) => {
-        setPowProgress(progress);
-      });
-
-      // 3. Submit solution to join waiting room
-      const res = await apiClient.joinWaitingRoom({
-        eventId: session.eventId,
-        clientId: session.clientId,
-        fingerprint: session.fingerprint,
-        solution
-      });
-
-      // 4. Update session
-      const updated = SessionManager.update(session, {
-        joinedWaitingRoomAt: res.joinedAt,
-        powSolution: solution,
-        totalInQueue: res.waitingRoomTotal
-      });
-      setSession(updated);
-    } catch (err) {
-      console.error('Failed to join waiting room:', err);
-    } finally {
-      setIsSolvingPoW(false);
-    }
-  };
-
-  // Trigger drop shuffle
-  const handleTriggerShuffle = () => {
-    fairDropSimulator.triggerShuffle();
-  };
-
-  // Fast forward to user turn (for testing/demo)
-  const handleSimulateTurn = () => {
-    if (!session) return;
-    const grant = fairDropSimulator.triggerDirectGrant(session.clientId);
-    const updated = SessionManager.update(session, {
-      reservationToken: grant.reservationToken,
-      seatNumber: grant.seatNumber,
-      reservationExpiresAt: grant.expiresAt,
-      queuePosition: 0
-    });
-    setSession(updated);
-    setIsCheckoutOpen(true);
-  };
-
-  // Handle successful checkout
-  const handleCheckoutSuccess = (receipt: CheckoutResponse) => {
-    if (!session) return;
-    setIsCheckoutOpen(false);
-    const updated = SessionManager.update(session, {
-      receipt,
-      reservationToken: null,
-      reservationExpiresAt: null
-    });
-    setSession(updated);
-  };
-
-  // Handle reservation hold expiration
-  const handleReservationExpire = () => {
-    setIsCheckoutOpen(false);
-    if (!session) return;
-    const updated = SessionManager.update(session, {
-      reservationToken: null,
-      seatNumber: null,
-      reservationExpiresAt: null
-    });
-    setSession(updated);
-  };
-
-  // Reset entire session
-  const handleResetSession = useCallback(() => {
-    const fresh = SessionManager.reset(DROP_CONSTANTS.DEFAULT_EVENT_ID);
-    fairDropSimulator.resetSimulation();
-    setSession(fresh);
-    setIsCheckoutOpen(false);
-    setPowProgress(null);
-    setConfig(fairDropSimulator.getDropConfig());
-    setQueueStatus(fairDropSimulator.getQueueStatus(fresh.clientId));
-  }, []);
-
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white font-mono text-xs">
-        Initializing FairDrop Secure Session...
-      </div>
-    );
-  }
-
-  const hasPurchased = session.receipt !== null;
-  const isQueueActive = config.currentPhase === 'ACTIVE';
-
+export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-950 text-white">
-      {/* Navigation */}
-      <Navbar
-        phase={config.currentPhase}
-        remainingSeats={config.remainingSeats}
-        totalSeats={config.totalSeats}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onResetSession={handleResetSession}
-        isSSEConnected={isSSEConnected}
-      />
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeView === 'botlab' ? (
-          <BotLabDashboard />
-        ) : (
-          <div className="space-y-8">
-            {hasPurchased && session.receipt ? (
-              <OrderConfirmationCard
-                receipt={session.receipt}
-                onViewBotLab={() => setActiveView('botlab')}
-                onReset={handleResetSession}
-              />
-            ) : isQueueActive && session.joinedWaitingRoomAt ? (
-              <QueueProgressCard
-                status={queueStatus}
-                onSimulateTurn={handleSimulateTurn}
-              />
-            ) : (
-              <WaitingRoomCard
-                config={config}
-                phase={config.currentPhase}
-                hasJoined={session.joinedWaitingRoomAt !== null}
-                isJoining={isSolvingPoW}
-                powSolution={session.powSolution}
-                powProgress={powProgress}
-                onJoin={handleJoinWaitingRoom}
-                onTriggerShuffle={handleTriggerShuffle}
-              />
-            )}
+    <div className="space-y-12 py-4">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden glass-panel-violet rounded-3xl p-8 sm:p-12 text-center">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/30 text-xs font-mono">
+            <Dice5 className="w-3.5 h-3.5" />
+            Randomized Join-Window Lottery Engine
           </div>
-        )}
-      </main>
 
-      {/* 120s Guaranteed Hold Checkout Modal */}
-      {isCheckoutOpen && session.seatNumber && session.reservationToken && (
-        <ReservationCheckoutModal
-          isOpen={isCheckoutOpen}
-          seatNumber={session.seatNumber}
-          reservationToken={session.reservationToken}
-          expiresAt={session.reservationExpiresAt || Date.now() + 120000}
-          idempotencyKey={session.idempotencyKey}
-          priceCents={config.priceCents}
-          currency={config.currency}
-          onSuccess={handleCheckoutSuccess}
-          onExpire={handleReservationExpire}
-        />
-      )}
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
+            500 Seats. 50,000 Fans.{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-indigo-300">
+              Zero Bot Advantages.
+            </span>
+          </h1>
 
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-6 px-4 text-center text-xs text-zinc-500 font-mono">
-        FairDrop &bull; Cryptographically Fair High-Demand Allocation &bull; Hackathon M2 Frontend &bull; Node 20 / Next.js 14 / TypeScript
-      </footer>
+          <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl mx-auto">
+            Traditional drops reward whoever is 5 milliseconds faster. FairDrop randomizes the waiting room queue, neutralizes bot farms via browser Proof of Work, and guarantees atomic seat allocation.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Link
+              href="/register"
+              className="px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold shadow-lg shadow-violet-600/30 flex items-center gap-2 transition-all"
+            >
+              Start Fan Drop Flow
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+
+            <Link
+              href="/admin/lab"
+              className="px-6 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 text-sm font-medium border border-white/10 flex items-center gap-2 transition-all"
+            >
+              <Cpu className="w-4 h-4 text-violet-400" />
+              Open Adversarial Bot Lab
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* 3 Pillars of FairDrop */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div
+          whileHover={{ y: -4 }}
+          className="glass-panel rounded-2xl p-6 border border-white/10"
+        >
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center justify-center mb-4">
+            <Dice5 className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-2">
+            1. Speed Irrelevance
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            All users who join during the waiting room window are shuffled using a deterministic seeded Fisher-Yates lottery. Being 5ms faster yields zero rank advantage.
+          </p>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ y: -4 }}
+          className="glass-panel rounded-2xl p-6 border border-white/10"
+        >
+          <div className="w-10 h-10 rounded-xl bg-good/10 text-good border border-good/20 flex items-center justify-center mb-4">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-2">
+            2. Multi-Layer Defense
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Client-side WebCrypto SHA-256 Proof of Work equalizes request volume. A human computes 1 challenge in 200ms; an attacker running 50,000 bots exhausts CPU capacity.
+          </p>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ y: -4 }}
+          className="glass-panel rounded-2xl p-6 border border-white/10"
+        >
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-4">
+            <Lock className="w-5 h-5" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-2">
+            3. Provable Correctness
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Before the draw, SHA-256 commitments are published. After the draw, seeds and Merkle roots are revealed so users and judges can independently audit the allocation.
+          </p>
+        </motion.div>
+      </section>
+
+      {/* Flow Stage Cards */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <Users className="w-5 h-5 text-violet-400" />
+          Demonstration Navigation Pages
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Link
+            href="/register"
+            className="glass-panel rounded-2xl p-5 hover:border-violet-500/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-violet-400 uppercase font-semibold">Stage 1</span>
+            <h4 className="text-base font-bold text-white group-hover:text-violet-300 transition-colors mt-1">
+              /register
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              User identity, fingerprinting, OTP verification & risk tier scoring.
+            </p>
+          </Link>
+
+          <Link
+            href="/waiting"
+            className="glass-panel rounded-2xl p-5 hover:border-violet-500/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-blue-400 uppercase font-semibold">Stage 2</span>
+            <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors mt-1">
+              /waiting
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Proof-of-Work solver, uniform waiting room shuffle & live queue updates.
+            </p>
+          </Link>
+
+          <Link
+            href="/checkout"
+            className="glass-panel rounded-2xl p-5 hover:border-good/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-good uppercase font-semibold">Stage 3</span>
+            <h4 className="text-base font-bold text-white group-hover:text-good transition-colors mt-1">
+              /checkout
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Guaranteed 120-second seat hold, idempotent payment & digital receipt pass.
+            </p>
+          </Link>
+
+          <Link
+            href="/verify"
+            className="glass-panel rounded-2xl p-5 hover:border-amber-500/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-amber-400 uppercase font-semibold">Stage 4</span>
+            <h4 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors mt-1">
+              /verify
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Audit the cryptographic seed commitment, revealed hash & Merkle proof.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/lab"
+            className="glass-panel rounded-2xl p-5 hover:border-violet-500/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-violet-400 uppercase font-semibold">Adversarial Lab</span>
+            <h4 className="text-base font-bold text-white group-hover:text-violet-300 transition-colors mt-1">
+              /admin/lab
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Simulate 50k speed bots, DDoS flooding & measure Defenses ON vs OFF.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/dashboard"
+            className="glass-panel rounded-2xl p-5 hover:border-blue-500/40 transition-all group"
+          >
+            <span className="text-[11px] font-mono text-blue-400 uppercase font-semibold">Telemetry</span>
+            <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors mt-1">
+              /admin/dashboard
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              Real-time Recharts analytics, Gini coefficient & inventory conservation check.
+            </p>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
