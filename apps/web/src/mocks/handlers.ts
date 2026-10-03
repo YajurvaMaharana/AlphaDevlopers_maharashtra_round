@@ -17,7 +17,8 @@ import {
   AdminBotLabRunResponse,
   AdminInvariantsResponse,
   AdminChaosResponse,
-  LiveMetricsPayload
+  LiveMetricsPayload,
+  RunReport
 } from '@fairdrop/shared';
 
 // Simulated state store for MSW
@@ -33,7 +34,149 @@ const mockDb = {
   heldSeats: 28,
   dropPhase: 'WAITING_ROOM' as 'UPCOMING' | 'WAITING_ROOM' | 'SHUFFLE' | 'ACTIVE' | 'SOLD_OUT',
   users: new Map<string, { email: string; token: string }>(),
-  receipts: new Map<string, ReceiptResponse>()
+  receipts: new Map<string, ReceiptResponse>(),
+  reports: [
+    {
+      runId: 'run_sim_fcfs_001',
+      scenario: 'distributed_botnet' as const,
+      scenarioName: 'Distributed Botnet Flood (FCFS Baseline)',
+      defensesEnabled: false,
+      parameters: {
+        totalClients: 5000,
+        botRatio: 0.8,
+        durationSeconds: 30,
+        totalSeats: 500,
+        rateLimitRps: 0,
+        powDifficulty: 0
+      },
+      metrics: {
+        botSeatSharePct: 68.4,
+        humanSeatSharePct: 31.6,
+        giniCoefficient: 0.82,
+        speedAdvantageIndex: 0.94,
+        oversellCount: 14,
+        p95LatencyMs: 3420,
+        errorRatePct: 41.2,
+        totalRequests: 84500,
+        rejectedRequests: 4200,
+        seatsSold: 500,
+        totalSeats: 500
+      },
+      completedAt: Date.now() - 7200000
+    },
+    {
+      runId: 'run_sim_fairdrop_002',
+      scenario: 'distributed_botnet' as const,
+      scenarioName: 'Distributed Botnet Flood (FairDrop Defenses Armed)',
+      defensesEnabled: true,
+      parameters: {
+        totalClients: 5000,
+        botRatio: 0.8,
+        durationSeconds: 30,
+        totalSeats: 500,
+        rateLimitRps: 50,
+        powDifficulty: 4
+      },
+      metrics: {
+        botSeatSharePct: 2.8,
+        humanSeatSharePct: 97.2,
+        giniCoefficient: 0.05,
+        speedAdvantageIndex: 0.01,
+        oversellCount: 0,
+        p95LatencyMs: 24,
+        errorRatePct: 0.2,
+        totalRequests: 84500,
+        rejectedRequests: 62400,
+        seatsSold: 500,
+        totalSeats: 500
+      },
+      completedAt: Date.now() - 3600000
+    },
+    {
+      runId: 'run_sim_naive_003',
+      scenario: 'naive_flood' as const,
+      scenarioName: 'Naive HTTP Burst Flood (Defenses Disarmed)',
+      defensesEnabled: false,
+      parameters: {
+        totalClients: 8000,
+        botRatio: 0.9,
+        durationSeconds: 15,
+        totalSeats: 500,
+        rateLimitRps: 0,
+        powDifficulty: 0
+      },
+      metrics: {
+        botSeatSharePct: 94.2,
+        humanSeatSharePct: 5.8,
+        giniCoefficient: 0.91,
+        speedAdvantageIndex: 0.97,
+        oversellCount: 22,
+        p95LatencyMs: 4120,
+        errorRatePct: 58.4,
+        totalRequests: 120000,
+        rejectedRequests: 0,
+        seatsSold: 522,
+        totalSeats: 500
+      },
+      completedAt: Date.now() - 14400000
+    },
+    {
+      runId: 'run_sim_naive_004',
+      scenario: 'naive_flood' as const,
+      scenarioName: 'Naive HTTP Burst Flood (PoW + Tarpit Engaged)',
+      defensesEnabled: true,
+      parameters: {
+        totalClients: 8000,
+        botRatio: 0.9,
+        durationSeconds: 15,
+        totalSeats: 500,
+        rateLimitRps: 50,
+        powDifficulty: 4
+      },
+      metrics: {
+        botSeatSharePct: 1.8,
+        humanSeatSharePct: 98.2,
+        giniCoefficient: 0.04,
+        speedAdvantageIndex: 0.0,
+        oversellCount: 0,
+        p95LatencyMs: 18,
+        errorRatePct: 0.1,
+        totalRequests: 120000,
+        rejectedRequests: 108000,
+        seatsSold: 500,
+        totalSeats: 500
+      },
+      completedAt: Date.now() - 10800000
+    },
+    {
+      runId: 'run_sim_replay_005',
+      scenario: 'replay_duplicate' as const,
+      scenarioName: 'Replay & Token Duplicate Attack (Idempotency Active)',
+      defensesEnabled: true,
+      parameters: {
+        totalClients: 2000,
+        botRatio: 0.75,
+        durationSeconds: 20,
+        totalSeats: 500,
+        rateLimitRps: 50,
+        powDifficulty: 4
+      },
+      metrics: {
+        botSeatSharePct: 0.0,
+        humanSeatSharePct: 100.0,
+        giniCoefficient: 0.02,
+        speedAdvantageIndex: -0.01,
+        oversellCount: 0,
+        p95LatencyMs: 22,
+        errorRatePct: 0.0,
+        totalRequests: 45000,
+        rejectedRequests: 33750,
+        seatsSold: 500,
+        totalSeats: 500
+      },
+      completedAt: Date.now() - 18000000
+    }
+  ] as RunReport[]
 };
 
 export const handlers = [
@@ -421,5 +564,20 @@ export const handlers = [
       details: 'Simulated failure injected into system. Invariant checker remains active.'
     };
     return HttpResponse.json(response, { status: 200 });
+  }),
+
+  // 20. GET /reports
+  http.get('*/reports', () => {
+    return HttpResponse.json(mockDb.reports, { status: 200 });
+  }),
+
+  // 21. GET /reports/:id
+  http.get('*/reports/:id', ({ params }) => {
+    const id = String(params.id);
+    const found = mockDb.reports.find((r) => r.runId === id);
+    if (found) {
+      return HttpResponse.json(found, { status: 200 });
+    }
+    return HttpResponse.json(mockDb.reports[0], { status: 200 });
   })
 ];

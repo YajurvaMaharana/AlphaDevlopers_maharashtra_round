@@ -10,13 +10,19 @@
   "scripts": {
     "dev": "npm --workspace=@fairdrop/web run dev",
     "dev:web": "npm --workspace=@fairdrop/web run dev",
+    "dev:api": "npm --workspace=api run dev",
     "build:web": "npm --workspace=@fairdrop/web run build",
+    "build:api": "npm --workspace=api run build",
     "build:shared": "npm --workspace=@fairdrop/shared run build",
+    "test": "vitest run",
     "test:shared": "npm --workspace=@fairdrop/shared run test",
-    "test": "vitest"
+    "test:api": "npm --workspace=api run test"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
-    "vitest": "^5.0.3"
+    "vitest": "^1.2.2"
   }
 }

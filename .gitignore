@@ -1,14 +1,11 @@
-<<<<<<< HEAD
-node_modules
-.next
-out
-dist
-build
+node_modules/
+.next/
+out/
+dist/
+build/
+.env
 .env*.local
+logs/
 *.log
 .DS_Store
 Thumbs.db
-=======
-.env
->>>>>>> a2532a1 (feat(shared): add Zod schemas, TypeScript types, and math utilities)
-node_modules/

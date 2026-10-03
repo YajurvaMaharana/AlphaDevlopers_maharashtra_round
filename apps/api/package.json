@@ -1,0 +1,31 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "main": "dist/apps/api/src/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "reset": "echo \"Reset script placeholder\""
+  },
+  "dependencies": {
+    "@types/uuid": "^10.0.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.26.1",
+    "fastify-plugin": "^6.0.0",
+    "ioredis": "^5.3.2",
+    "jose": "^6.2.12",
+    "pg": "^8.11.3",
+    "pino": "^8.19.0",
+    "pino-pretty": "^10.3.1",
+    "uuid": "^14.0.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  }
+}
