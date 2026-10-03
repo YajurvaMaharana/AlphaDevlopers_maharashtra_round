@@ -191,7 +191,9 @@ class SimulationEngine {
       waitingRoomOpensAt: Date.now() - 60000,
       dropStartsAt: Date.now() + 10000,
       purchaseWindowSeconds: DROP_CONSTANTS.PURCHASE_WINDOW_SECONDS,
-      currentPhase: this.phase
+      currentPhase: this.phase,
+      phase: this.phase,
+      waitingRoomParticipants: this.totalParticipants
     };
   }
 
@@ -293,7 +295,9 @@ class SimulationEngine {
       buyerEmail: email,
       purchasedAt: Date.now(),
       ticketHash: `sha256_${generateUUID().replace(/-/g, '')}`,
-      amountCents: DROP_CONSTANTS.DEFAULT_PRICE_CENTS
+      amountCents: DROP_CONSTANTS.DEFAULT_PRICE_CENTS,
+      currency: 'USD',
+      status: 'COMPLETED'
     };
 
     this.completedOrders.set(idempotencyKey, receipt);

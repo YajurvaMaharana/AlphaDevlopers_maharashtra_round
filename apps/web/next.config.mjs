@@ -8,11 +8,14 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@fairdrop/shared'],
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@fairdrop/shared': path.resolve(__dirname, '../../packages/shared/dist/src/index.js'),
     };
+    if (isServer) {
+      config.resolve.alias['msw/browser'] = false;
+    }
     return config;
   },
   async rewrites() {

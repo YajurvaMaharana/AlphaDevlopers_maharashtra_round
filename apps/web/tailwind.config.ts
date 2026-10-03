@@ -6,6 +6,7 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}'
   ],
   theme: {
     container: {
@@ -17,49 +18,76 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+        // Design tokens: Navy background, violet accent, green for good, red for bad
+        navy: {
+          950: '#050814',
+          900: '#070c1e',
+          800: '#0c1533',
+          700: '#14214d',
+          600: '#1c2e6b',
         },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+        violet: {
+          DEFAULT: '#8b5cf6',
+          glow: '#a78bfa',
+          deep: '#6d28d9',
         },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+        good: {
+          DEFAULT: '#22c55e',
+          glow: '#4ade80',
+          dark: '#15803d',
         },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+        bad: {
+          DEFAULT: '#ef4444',
+          glow: '#f87171',
+          dark: '#b91c1c',
         },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+        background: '#070c1e', // Dark navy background
+        foreground: '#f1f5f9',
+        card: {
+          DEFAULT: 'rgba(12, 21, 51, 0.75)',
+          foreground: '#f1f5f9',
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: '#0c1533',
+          foreground: '#f1f5f9',
         },
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+        primary: {
+          DEFAULT: '#8b5cf6', // Violet accent
+          foreground: '#ffffff',
         },
+        secondary: {
+          DEFAULT: '#14214d',
+          foreground: '#f1f5f9',
+        },
+        muted: {
+          DEFAULT: '#101a3b',
+          foreground: '#94a3b8',
+        },
+        accent: {
+          DEFAULT: '#8b5cf6', // Violet
+          foreground: '#ffffff',
+        },
+        destructive: {
+          DEFAULT: '#ef4444', // Red for bad
+          foreground: '#ffffff',
+        },
+        success: {
+          DEFAULT: '#22c55e', // Green for good
+          foreground: '#ffffff',
+        },
+        border: 'rgba(255, 255, 255, 0.08)',
+        input: 'rgba(255, 255, 255, 0.1)',
+        ring: '#8b5cf6',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: '0.75rem',
+        md: 'calc(0.75rem - 2px)',
+        sm: 'calc(0.75rem - 4px)',
       },
       keyframes: {
         'pulse-glow': {
-          '0%, 100%': { opacity: '0.6', filter: 'blur(20px)' },
-          '50%': { opacity: '0.9', filter: 'blur(28px)' },
+          '0%, 100%': { opacity: '0.5', filter: 'blur(20px)' },
+          '50%': { opacity: '0.8', filter: 'blur(30px)' },
         },
         'radar-sweep': {
           '0%': { transform: 'rotate(0deg)' },

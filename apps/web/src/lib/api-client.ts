@@ -140,8 +140,8 @@ export class FairDropApiClient {
     if (this.useSimulator) {
       return fairDropSimulator.processCheckout(
         validated.idempotencyKey,
-        validated.fullName,
-        validated.email
+        validated.fullName || validated.attendee?.name || 'Fan',
+        validated.email || validated.attendee?.email || 'fan@example.com'
       );
     }
 
