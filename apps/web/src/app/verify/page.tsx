@@ -89,7 +89,7 @@ function VerifyContent() {
           receiptId: targetId,
           orderId: `ord_${targetId.slice(-6)}`,
           dropId: 'fairdrop-main-2026',
-          seatNumbers: [42],
+          seatNumbers: [40],
           buyerName: 'Alex Rivers',
           buyerEmail: 'alex.rivers@example.com',
           paidAt: Date.now() - 3600000,
@@ -98,31 +98,31 @@ function VerifyContent() {
           txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
           allocationId: `alloc_fd_${targetId.slice(-8)}`,
           queueBatch: 'Batch #1 (Window A)',
-          rank: 42,
+          rank: 40,
           riskTier: 'Tier 1: Minimal Risk (Human 99.4%)',
-          commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
-          revealedSeed: 'fairdrop_seed_10',
-          merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e'
+          commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+          revealedSeed: 'fairdrop_seed_valid_99',
+          merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296'
         })),
         api.drop.getProof('fairdrop-main-2026', 'usr_mock_001').catch(() => ({
           dropId: 'fairdrop-main-2026',
           userId: 'usr_mock_001',
-          revealedSeed: 'fairdrop_seed_10',
-          commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
-          merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+          revealedSeed: 'fairdrop_seed_valid_99',
+          commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+          merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
           merkleProof: [
-            '158d0117b326f4683f9ba6d5e327b863eac8753dafcd7dd262768cf99030c68f',
-            '7720208925e9ef8af9a819a0d2f1bd07d611bab1de06f71af6a7ec0662d4eea8',
-            '364dd8bb4319f93ce984ecc5fa212d8936000099b19f52f1370251e9c3111d2f'
+            '1283cbd3042c06ca007827821a45bcd9e2560f908609104b252ae1c3f30ae91d',
+            '954c4755fae8466b8fdbbd0299d73218a109bb2e98e107e1716b4f8303b420ec',
+            'b110fb2631f60193c1a411352c752ee7f12fe312341640cb9c84dc4ed9472917'
           ],
-          userRank: 42,
-          seatNumber: 42,
-          leafHash: 'd29894432e70caac75c92b17533e6033a9ccc4021d605505604c2a8f39881ca9',
+          userRank: 40,
+          seatNumber: 40,
+          leafHash: '402168f86f771c76a8147a85be313df34a09913d6e724d2b8c689c9c5974d9a5',
           isVerified: true
         })),
         api.drop.getCommitment('fairdrop-main-2026').catch(() => ({
           dropId: 'fairdrop-main-2026',
-          commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
+          commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
           algorithm: 'SHA-256',
           publishedAt: Date.now() - 7200000,
           description: 'SHA-256 commitment of the random seed published before the drop.'

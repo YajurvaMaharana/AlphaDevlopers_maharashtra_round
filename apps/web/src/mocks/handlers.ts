@@ -19,6 +19,21 @@ import {
   AdminChaosResponse,
   LiveMetricsPayload
 } from '@fairdrop/shared';
+import {
+  STATIC_DEFENSES_OFF_REPORT,
+  STATIC_DEFENSES_ON_REPORT
+} from '@/data/static-reports';
+
+// Safe JSON parser to handle empty or invalid request bodies
+async function safeJson<T>(request: Request): Promise<Partial<T>> {
+  try {
+    const text = await request.clone().text();
+    if (!text) return {};
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
 
 // Simulated state store for MSW
 const mockDb = {
@@ -38,8 +53,8 @@ const mockDb = {
 
 export const handlers = [
   // 1. POST /auth/register
-  http.post('*/auth/register', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { email?: string };
+  http.post('/auth/register', async ({ request }) => {
+    const body = await safeJson<{ email?: string }>(request);
     const email = body.email || 'fan@example.com';
 
     const response: RegisterResponse = {
@@ -52,8 +67,8 @@ export const handlers = [
   }),
 
   // 2. POST /auth/verify
-  http.post('*/auth/verify', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { email?: string; otp?: string };
+  http.post('/auth/verify', async ({ request }) => {
+    const body = await safeJson<{ email?: string; otp?: string }>(request);
     const email = body.email || 'fan@example.com';
     const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -71,7 +86,7 @@ export const handlers = [
   }),
 
   // 3. GET /me/state
-  http.get('*/me/state', async () => {
+  http.get('/me/state', async () => {
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
       email: 'fan@example.com',
@@ -88,8 +103,8 @@ export const handlers = [
   }),
 
   // 4. POST /pow/challenge
-  http.post('*/pow/challenge', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { action?: string };
+  http.post('/pow/challenge', async ({ request }) => {
+    const body = await safeJson<{ action?: string }>(request);
     const response: PoWChallenge = {
       challengeId: `chal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       salt: `fairdrop-salt-${Date.now()}`,
@@ -101,7 +116,7 @@ export const handlers = [
   }),
 
   // 5. POST /pow/solve
-  http.post('*/pow/solve', async () => {
+  http.post('/pow/solve', async () => {
     const response: SolvePoWResponse = {
       success: true,
       solutionToken: `sol_tok_${Date.now()}_verified`,
@@ -111,8 +126,8 @@ export const handlers = [
   }),
 
   // 6. POST /drop/join
-  http.post('*/drop/join', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { dropId?: string };
+  http.post('/drop/join', async ({ request }) => {
+    const body = await safeJson<{ dropId?: string }>(request);
     const response: DropJoinResponse = {
       success: true,
       dropId: body.dropId || 'fairdrop-main-2026',
@@ -126,7 +141,7 @@ export const handlers = [
   }),
 
   // 7. GET /drop/stream (SSE or mock heartbeat)
-  http.get('*/drop/stream', () => {
+  http.get('/drop/stream', () => {
     return new HttpResponse(
       `: heartbeat\nevent: DROP_STATUS\ndata: ${JSON.stringify({
         dropId: 'fairdrop-main-2026',
@@ -146,10 +161,10 @@ export const handlers = [
   }),
 
   // 8. GET /drop/commitment
-  http.get('*/drop/commitment', () => {
+  http.get('/drop/commitment', () => {
     const response: DropCommitmentResponse = {
       dropId: 'fairdrop-main-2026',
-      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
+      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
       algorithm: 'SHA-256',
       publishedAt: Date.now() - 3600000,
       description: 'SHA-256 cryptographic commitment of the random seed published before the drop.'
@@ -158,32 +173,32 @@ export const handlers = [
   }),
 
   // 9. GET /drop/proof
-  http.get('*/drop/proof', async ({ request }) => {
+  http.get('/drop/proof', async ({ request }) => {
     const url = new URL(request.url);
     const userId = url.searchParams.get('userId') || 'usr_mock_001';
 
     const response: DropProofResponse = {
       dropId: 'fairdrop-main-2026',
       userId,
-      revealedSeed: 'fairdrop_seed_10',
-      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
-      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+      revealedSeed: 'fairdrop_seed_valid_99',
+      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+      merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
       merkleProof: [
-        '158d0117b326f4683f9ba6d5e327b863eac8753dafcd7dd262768cf99030c68f',
-        '7720208925e9ef8af9a819a0d2f1bd07d611bab1de06f71af6a7ec0662d4eea8',
-        '364dd8bb4319f93ce984ecc5fa212d8936000099b19f52f1370251e9c3111d2f'
+        '1283cbd3042c06ca007827821a45bcd9e2560f908609104b252ae1c3f30ae91d',
+        '954c4755fae8466b8fdbbd0299d73218a109bb2e98e107e1716b4f8303b420ec',
+        'b110fb2631f60193c1a411352c752ee7f12fe312341640cb9c84dc4ed9472917'
       ],
-      userRank: 42,
-      seatNumber: 42,
-      leafHash: 'd29894432e70caac75c92b17533e6033a9ccc4021d605505604c2a8f39881ca9',
+      userRank: 40,
+      seatNumber: 40,
+      leafHash: '402168f86f771c76a8147a85be313df34a09913d6e724d2b8c689c9c5974d9a5',
       isVerified: true
     };
     return HttpResponse.json(response, { status: 200 });
   }),
 
   // 10. POST /checkout/reserve
-  http.post('*/checkout/reserve', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { dropId?: string };
+  http.post('/checkout/reserve', async ({ request }) => {
+    const body = await safeJson<{ dropId?: string }>(request);
     const response: CheckoutReserveResponse = {
       reservationId: `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       dropId: body.dropId || 'fairdrop-main-2026',
@@ -197,11 +212,11 @@ export const handlers = [
   }),
 
   // 11. POST /checkout/pay
-  http.post('*/checkout/pay', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as {
+  http.post('/checkout/pay', async ({ request }) => {
+    const body = await safeJson<{
       reservationId?: string;
       attendee?: { name: string; email: string };
-    };
+    }>(request);
 
     const receiptId = `rcpt_${Date.now()}_99a`;
     const response: CheckoutPayResponse = {
@@ -221,18 +236,18 @@ export const handlers = [
       dropId: 'fairdrop-main-2026',
       allocationId: `alloc_fd_${receiptId.slice(-8)}`,
       queueBatch: 'Batch #1 (Window A)',
-      rank: 42,
+      rank: 40,
       riskTier: 'Tier 1 (Low Risk - Human 99.4%)',
-      seatNumbers: [42],
+      seatNumbers: [40],
       buyerName: body.attendee?.name || 'Alex Rivers',
       buyerEmail: body.attendee?.email || 'alex.rivers@example.com',
       paidAt: Date.now(),
       amountCents: 9900,
       currency: 'USD',
       txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
-      revealedSeed: 'fairdrop_seed_10',
-      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+      revealedSeed: 'fairdrop_seed_valid_99',
+      merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
       qrCodeUrl: `/verify?receipt=${receiptId}`
     });
 
@@ -240,7 +255,7 @@ export const handlers = [
   }),
 
   // 12. GET /receipt/:id
-  http.get('*/receipt/:id', ({ params }) => {
+  http.get('/receipt/:id', ({ params }) => {
     const id = String(params.id);
     const existing = mockDb.receipts.get(id);
 
@@ -250,18 +265,18 @@ export const handlers = [
       dropId: 'fairdrop-main-2026',
       allocationId: `alloc_fd_${id.slice(-8)}`,
       queueBatch: 'Batch #1 (Window A)',
-      rank: 42,
+      rank: 40,
       riskTier: 'Tier 1 (Low Risk - Human 99.4%)',
-      seatNumbers: [42],
+      seatNumbers: [40],
       buyerName: 'Alex Rivers',
       buyerEmail: 'alex.rivers@example.com',
       paidAt: Date.now() - 60000,
       amountCents: 9900,
       currency: 'USD',
       txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
-      revealedSeed: 'fairdrop_seed_10',
-      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+      revealedSeed: 'fairdrop_seed_valid_99',
+      merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
       qrCodeUrl: `/verify?receipt=${id}`
     };
 
@@ -269,7 +284,7 @@ export const handlers = [
   }),
 
   // 13. GET /metrics/stream
-  http.get('*/metrics/stream', () => {
+  http.get('/metrics/stream', () => {
     const payload: LiveMetricsPayload = {
       timestamp: Date.now(),
       requestsPerSecond: 1250,
@@ -296,19 +311,28 @@ export const handlers = [
       }
     };
 
-    return HttpResponse.json(payload, { status: 200 });
+    return new HttpResponse(
+      `: heartbeat\nevent: METRICS_UPDATE\ndata: ${JSON.stringify(payload)}\n\n`,
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        }
+      }
+    );
   }),
 
   // 14. POST /admin/defenses
-  http.post('*/admin/defenses', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as {
+  http.post('/admin/defenses', async ({ request }) => {
+    const body = await safeJson<{
       enabled?: boolean;
       rateLimiting?: boolean;
       powRequired?: boolean;
       powDifficulty?: number;
       tarpitting?: boolean;
       strictFingerprinting?: boolean;
-    };
+    }>(request);
 
     if (body.enabled !== undefined) mockDb.defensesEnabled = body.enabled;
     if (body.rateLimiting !== undefined) mockDb.rateLimiting = body.rateLimiting;
@@ -333,8 +357,8 @@ export const handlers = [
   }),
 
   // 15. POST /admin/drop/start
-  http.post('*/admin/drop/start', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { dropId?: string };
+  http.post('/admin/drop/start', async ({ request }) => {
+    const body = await safeJson<{ dropId?: string }>(request);
     mockDb.dropPhase = 'ACTIVE';
 
     const response: AdminDropStartResponse = {
@@ -348,8 +372,8 @@ export const handlers = [
   }),
 
   // 16. POST /admin/drop/reset
-  http.post('*/admin/drop/reset', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { dropId?: string };
+  http.post('/admin/drop/reset', async ({ request }) => {
+    const body = await safeJson<{ dropId?: string }>(request);
     mockDb.soldSeats = 0;
     mockDb.heldSeats = 0;
     mockDb.dropPhase = 'WAITING_ROOM';
@@ -364,13 +388,13 @@ export const handlers = [
   }),
 
   // 17. POST /admin/botlab/run
-  http.post('*/admin/botlab/run', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as {
+  http.post('/admin/botlab/run', async ({ request }) => {
+    const body = await safeJson<{
       scenario?: string;
       totalClients?: number;
       botRatio?: number;
       durationSeconds?: number;
-    };
+    }>(request);
 
     const response: AdminBotLabRunResponse = {
       runId: `run_${Date.now()}_lab`,
@@ -387,7 +411,7 @@ export const handlers = [
   }),
 
   // 18. GET /admin/invariants
-  http.get('*/admin/invariants', () => {
+  http.get('/admin/invariants', () => {
     const sold = mockDb.soldSeats;
     const held = mockDb.heldSeats;
     const available = mockDb.totalSeats - sold - held;
@@ -411,8 +435,8 @@ export const handlers = [
   }),
 
   // 19. POST /admin/chaos
-  http.post('*/admin/chaos', async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { action?: string };
+  http.post('/admin/chaos', async ({ request }) => {
+    const body = await safeJson<{ action?: string }>(request);
     const response: AdminChaosResponse = {
       success: true,
       action: (body.action as any) || 'kill_api_replica',
@@ -421,5 +445,15 @@ export const handlers = [
       details: 'Simulated failure injected into system. Invariant checker remains active.'
     };
     return HttpResponse.json(response, { status: 200 });
+  }),
+
+  // 20. GET /reports/defenses-off.json
+  http.get('/reports/defenses-off.json', () => {
+    return HttpResponse.json(STATIC_DEFENSES_OFF_REPORT, { status: 200 });
+  }),
+
+  // 21. GET /reports/defenses-on.json
+  http.get('/reports/defenses-on.json', () => {
+    return HttpResponse.json(STATIC_DEFENSES_ON_REPORT, { status: 200 });
   })
 ];

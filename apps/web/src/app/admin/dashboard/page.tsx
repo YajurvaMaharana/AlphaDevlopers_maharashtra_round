@@ -302,7 +302,9 @@ function AdminDashboardContent() {
 
     if (!isMockMode && typeof window !== 'undefined' && window.EventSource) {
       try {
-        const streamUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/metrics/stream`;
+        const streamUrl = (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1')
+          ? '/metrics/stream'
+          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/metrics/stream`;
         sseSource = new EventSource(streamUrl);
 
         sseSource.onmessage = (e) => {

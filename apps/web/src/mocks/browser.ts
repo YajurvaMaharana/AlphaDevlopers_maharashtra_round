@@ -12,5 +12,5 @@ export async function startBrowserWorker(): Promise<void> {
     }
   });
 
-  console.log('[MSW] Mock Service Worker started (NEXT_PUBLIC_MOCK=1)');
+  console.log('[MSW] Mock Service Worker started (NEXT_PUBLIC_USE_MOCK_API=true)');
 }

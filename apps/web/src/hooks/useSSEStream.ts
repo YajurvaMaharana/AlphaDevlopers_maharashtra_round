@@ -14,7 +14,9 @@ export interface UseSSEStreamOptions {
 
 export function useSSEStream(options: UseSSEStreamOptions = {}) {
   const {
-    url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/drop/stream`,
+    url = (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1') 
+      ? '/drop/stream' 
+      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/drop/stream`,
     autoConnect = true,
     onQueueUpdate,
     onAdmitted,

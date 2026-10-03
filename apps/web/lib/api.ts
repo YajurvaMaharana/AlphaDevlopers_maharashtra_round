@@ -34,7 +34,8 @@ import {
   createAppError
 } from '@fairdrop/shared';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const isMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1';
+const BASE_URL = isMock ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
@@ -123,7 +124,8 @@ export const api = {
       ),
 
     getStreamUrl: (dropId: string, token?: string): string => {
-      const url = new URL(`${BASE_URL.replace(/\/$/, '')}/drop/stream`);
+      const baseUrl = BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/drop/stream`);
       url.searchParams.set('dropId', dropId);
       if (token) url.searchParams.set('token', token);
       return url.toString();
@@ -179,7 +181,8 @@ export const api = {
 
   metrics: {
     getStreamUrl: (interval = 2000): string => {
-      const url = new URL(`${BASE_URL.replace(/\/$/, '')}/metrics/stream`);
+      const baseUrl = BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/metrics/stream`);
       url.searchParams.set('interval', interval.toString());
       return url.toString();
     },
