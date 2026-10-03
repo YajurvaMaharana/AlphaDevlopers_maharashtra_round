@@ -22,26 +22,28 @@ services:
 
   api1:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/api/Dockerfile
     environment:
       - PORT=3000
       - DATABASE_URL=postgres://postgres:password@db:5432/fairdrop
       - REDIS_URL=redis://redis:6379
       - REPLICA_ID=api1
+      - DEMO_MODE=true
     depends_on:
       - db
       - redis
 
   api2:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./apps/api/Dockerfile
     environment:
       - PORT=3000
       - DATABASE_URL=postgres://postgres:password@db:5432/fairdrop
       - REDIS_URL=redis://redis:6379
       - REPLICA_ID=api2
+      - DEMO_MODE=true
     depends_on:
       - db
       - redis

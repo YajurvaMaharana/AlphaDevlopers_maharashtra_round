@@ -1,10 +1,13 @@
 import Fastify from 'fastify';
 import { env } from './env';
-import Redis from 'ioredis';
-import { Client } from 'pg';
+import { redis } from './redis';
+import { pool } from './db';
+import { jwtVerifyPlugin } from './plugins/jwt';
+import { authRoutes } from './routes/auth';
 
 // Setup Fastify with structured logging
 const fastify = Fastify({
+  trustProxy: true,
   logger: {
     transport: {
       target: 'pino-pretty',
@@ -13,30 +16,32 @@ const fastify = Fastify({
   },
 });
 
-// Setup Redis Client with retry strategy
-const redis = new Redis(env.REDIS_URL, {
-  retryStrategy(times) {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-});
-
 redis.on('connect', () => fastify.log.info('Connected to Redis'));
 redis.on('error', (err) => fastify.log.error(err, 'Redis error'));
 
 // Setup Postgres Migration Runner
 async function runMigrations() {
-  const client = new Client({ connectionString: env.DATABASE_URL });
+  const client = await pool.connect();
   try {
-    await client.connect();
     fastify.log.info('Connected to Postgres');
     
-    // Create a dummy migration table if it doesn't exist to verify functionality
+    // Create migrations and users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS migrations (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         run_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        device_fp VARCHAR(255) NOT NULL,
+        ip_subnet VARCHAR(45) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        risk_tier VARCHAR(50) DEFAULT 'normal'
       );
     `);
     
@@ -45,9 +50,15 @@ async function runMigrations() {
     fastify.log.error(err, 'Postgres migration error');
     throw err;
   } finally {
-    await client.end();
+    client.release();
   }
 }
+
+// Register plugins
+fastify.register(jwtVerifyPlugin);
+
+// Register routes
+fastify.register(authRoutes, { prefix: '/auth' });
 
 // Health check endpoint with replica ID
 fastify.get('/health', async (request, reply) => {
