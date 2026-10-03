@@ -85,7 +85,8 @@ export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 export const VerifyOtpRequestSchema = z.object({
   email: z.string().email(),
   otp: z.string().length(6, 'OTP must be 6 digits'),
-  clientFingerprint: z.string().min(8)
+  clientFingerprint: z.string().min(8),
+  signals: z.record(z.any()).optional()
 });
 export type VerifyOtpRequest = z.infer<typeof VerifyOtpRequestSchema>;
 

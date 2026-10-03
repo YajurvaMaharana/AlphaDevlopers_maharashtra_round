@@ -17,7 +17,8 @@ export const DropJoinRequestSchema = z.object({
   dropId: z.string().min(1),
   powSolutionToken: z.string().optional(),
   idempotencyKey: z.string().uuid('Idempotency key must be a valid UUID'),
-  fingerprint: z.string().min(8)
+  fingerprint: z.string().min(8),
+  signals: z.record(z.any()).optional()
 });
 export type DropJoinRequest = z.infer<typeof DropJoinRequestSchema>;
 

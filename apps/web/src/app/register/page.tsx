@@ -20,9 +20,12 @@ export default function RegisterPage() {
     setError(null);
 
     try {
+      const { collectSignals } = await import('@/lib/signals');
+      const signals = await collectSignals();
+
       await api.auth.register({
         email,
-        clientFingerprint: `fp-${Math.random().toString(36).slice(2, 10)}-${navigator.language || 'en'}`
+        clientFingerprint: signals.deviceFp
       });
       setStep('VERIFY');
     } catch (err: any) {
@@ -38,10 +41,18 @@ export default function RegisterPage() {
     setError(null);
 
     try {
+      const { collectSignals } = await import('@/lib/signals');
+      const signals = await collectSignals();
+
       const res = await api.auth.verify({
         email,
         otp,
-        clientFingerprint: `fp-${Math.random().toString(36).slice(2, 10)}-${navigator.language || 'en'}`
+        clientFingerprint: signals.deviceFp,
+        signals: {
+          deviceFp: signals.deviceFp,
+          behaviorScore: signals.behaviorScore,
+          features: signals.features
+        }
       });
 
       setUserResult({
