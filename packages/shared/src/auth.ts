@@ -104,6 +104,26 @@ export type VerifyOtpResponse = z.infer<typeof VerifyOtpResponseSchema>;
 // ==========================================
 // GET /me/state
 // ==========================================
+export const ClientFlowStepEnum = z.enum([
+  'anonymous',
+  'verified',
+  'joined',
+  'waiting',
+  'admitted',
+  'reserved',
+  'paying',
+  'confirmed',
+  'failed',
+  'expired'
+]);
+export type ClientFlowStep = z.infer<typeof ClientFlowStepEnum>;
+
+export const HoldStateSchema = z.object({
+  holdId: z.string(),
+  expiresAt: z.number().int().positive()
+});
+export type HoldState = z.infer<typeof HoldStateSchema>;
+
 export const UserStateStatusEnum = z.enum([
   'ANONYMOUS',
   'VERIFIED',
@@ -124,16 +144,26 @@ export const UserReservationStateSchema = z.object({
 export type UserReservationState = z.infer<typeof UserReservationStateSchema>;
 
 export const UserStateResponseSchema = z.object({
-  userId: z.string(),
-  email: z.string(),
-  status: UserStateStatusEnum,
-  queuePosition: z.number().int().nullable(),
-  estimatedWaitSeconds: z.number().int().nullable(),
-  reservation: UserReservationStateSchema.nullable(),
-  receiptId: z.string().nullable(),
-  riskTier: z.enum(['low', 'medium', 'high']),
-  powRequired: z.boolean(),
-  powDifficulty: z.number().int().min(1).max(8)
+  // Canonical fast pipeline fields (<5 ms contract)
+  step: ClientFlowStepEnum.optional(),
+  ticketId: z.string().nullable().optional(),
+  position: z.number().int().nullable().optional(),
+  etaSec: z.number().int().nullable().optional(),
+  hold: HoldStateSchema.nullable().optional(),
+  allocation: z.number().int().nullable().optional(),
+  tier: z.enum(['low', 'medium', 'high']).optional(),
+
+  // Extended / existing fields
+  userId: z.string().optional(),
+  email: z.string().optional(),
+  status: UserStateStatusEnum.optional(),
+  queuePosition: z.number().int().nullable().optional(),
+  estimatedWaitSeconds: z.number().int().nullable().optional(),
+  reservation: UserReservationStateSchema.nullable().optional(),
+  receiptId: z.string().nullable().optional(),
+  riskTier: z.enum(['low', 'medium', 'high']).optional(),
+  powRequired: z.boolean().optional(),
+  powDifficulty: z.number().int().min(1).max(8).optional()
 });
 export type UserStateResponse = z.infer<typeof UserStateResponseSchema>;
 

@@ -84,6 +84,12 @@ export const api = {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }),
 
+    getMeState: (token?: string): Promise<UserStateResponse> =>
+      request<UserStateResponse>('/me/state', {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }),
+
     createPoWChallenge: (body: CreatePoWChallengeRequest): Promise<PoWChallenge> =>
       request<PoWChallenge>('/pow/challenge', {
         method: 'POST',
