@@ -12,6 +12,8 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@fairdrop/shared': path.resolve(__dirname, '../../packages/shared/dist/src/index.js'),
+      '@noble/hashes/sha256': path.resolve(__dirname, 'node_modules/@noble/hashes/sha2.js'),
+      '@noble/hashes/utils': path.resolve(__dirname, 'node_modules/@noble/hashes/utils.js'),
     };
     if (isServer) {
       config.resolve.alias['msw/browser'] = false;

@@ -27,6 +27,8 @@ import { api } from '@/lib/api';
 import { solvePoW, PoWChallenge, PoWSolution } from '@fairdrop/shared';
 import { CrowdCanvas } from '@/components/CrowdCanvas';
 import { ClientFlowController } from '@/components/ClientFlowController';
+import { usePow } from '@/hooks/usePow';
+import { SecuringSpotIndicator } from '@/components/SecuringSpotIndicator';
 
 export default function WaitingRoomPage() {
   const router = useRouter();
@@ -82,59 +84,42 @@ export default function WaitingRoomPage() {
     return () => clearInterval(timer);
   }, [phase, dropStartsAt]);
 
+  // Web Worker PoW Hook
+  const pow = usePow('join', {
+    onCompleted: async (token) => {
+      try {
+        const { collectSignals } = await import('@/lib/signals');
+        const signals = await collectSignals();
+
+        await api.drop.join({
+          dropId: 'fairdrop-main-2026',
+          powSolutionToken: token,
+          idempotencyKey: crypto.randomUUID(),
+          fingerprint: signals.deviceFp,
+          signals: {
+            deviceFp: signals.deviceFp,
+            behaviorScore: signals.behaviorScore,
+            features: signals.features,
+          },
+        });
+
+        setPhase('WAITING_ROOM');
+      } catch (err: any) {
+        setError(err?.message || 'Error enrolling into waiting room');
+        setPhase('UPCOMING');
+      }
+    },
+    onError: (err) => {
+      setError(err?.message || 'Proof-of-work security verification error');
+      setPhase('UPCOMING');
+    },
+  });
+
   // Handle countdown completion -> Securing Spot
   const handleDropOpen = useCallback(() => {
     setPhase('SECURING_SPOT');
-    executePoWStep();
-  }, []);
-
-  // Step 1: Proof of Work "Securing your spot"
-  const executePoWStep = async () => {
-    setError(null);
-    try {
-      // 1. Collect passive client signals (Part 1)
-      const { collectSignals } = await import('@/lib/signals');
-      const signals = await collectSignals();
-
-      // 2. Fetch PoW challenge
-      const challenge: PoWChallenge = await api.auth.createPoWChallenge({
-        clientId: 'usr_fan_001',
-        action: 'join'
-      });
-
-      // 3. Solve challenge with live hash rate feedback
-      const startTime = Date.now();
-      const solution = await solvePoW(challenge, (attempts) => {
-        const elapsed = Math.max(1, Date.now() - startTime);
-        setPowProgress({
-          hashes: attempts,
-          hashRate: Math.round((attempts / elapsed) * 1000),
-          elapsedMs: elapsed,
-          targetPrefix: '0'.repeat(challenge.difficulty)
-        });
-      });
-
-      setPowSolution(solution);
-
-      // 4. Enroll into drop with device fingerprint and signals
-      await api.drop.join({
-        dropId: 'fairdrop-main-2026',
-        powSolutionToken: solution.nonce,
-        idempotencyKey: crypto.randomUUID(),
-        fingerprint: signals.deviceFp,
-        signals: {
-          deviceFp: signals.deviceFp,
-          behaviorScore: signals.behaviorScore,
-          features: signals.features
-        }
-      });
-
-      setPhase('WAITING_ROOM');
-    } catch (err: any) {
-      setError(err?.message || 'Proof-of-work security verification error');
-      setPhase('UPCOMING');
-    }
-  };
+    pow.start().catch(() => {});
+  }, [pow]);
 
   // Monotonic queue rank updater: guarantees rank NEVER jumps backwards
   const updateQueueRankMonotonically = useCallback((incomingRank: number) => {
@@ -321,37 +306,18 @@ export default function WaitingRoomPage() {
 
             {/* STAGE 2: PROOF OF WORK "SECURING YOUR SPOT" */}
             {phase === 'SECURING_SPOT' && (
-              <div className="text-center py-8 space-y-4">
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-violet-500/20 text-violet-400 border border-violet-500/30 flex items-center justify-center animate-spin">
-                  <Cpu className="w-7 h-7" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    Securing Your Spot & Neutralizing Bots...
-                  </h3>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-                    Your browser is computing a lightweight Proof-of-Work challenge (target:{' '}
-                    <code className="text-violet-300 font-mono">0000...</code>). This guarantees 1 person = 1 computer, preventing bot farms from swarming.
-                  </p>
-                </div>
-
-                {powProgress && (
-                  <div className="max-w-xs mx-auto p-3 rounded-xl bg-slate-900 border border-white/10 font-mono text-xs text-slate-300 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Hashrate:</span>
-                      <span className="text-violet-400 font-bold">{powProgress.hashRate.toLocaleString()} H/s</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Hashes Computed:</span>
-                      <span>{powProgress.hashes.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Time Elapsed:</span>
-                      <span>{powProgress.elapsedMs}ms</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <SecuringSpotIndicator
+                status={pow.status}
+                progress={pow.progress}
+                passToken={pow.passToken}
+                solveResult={pow.solveResult}
+                error={pow.error}
+                onCancel={() => {
+                  pow.cancel();
+                  setPhase('UPCOMING');
+                }}
+                onRetry={() => pow.start()}
+              />
             )}
 
             {/* STAGE 3: WAITING ROOM ASSEMBLED */}
