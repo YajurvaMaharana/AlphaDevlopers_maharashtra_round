@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: fairdrop-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: fairdrop-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fairdrop
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api_replica_1:
+    build: .
+    command: npm --workspace=@fairdrop/api run start
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/fairdrop
+    ports:
+      - "4001:4000"
+    depends_on:
+      - redis
+      - postgres
+    restart: always
+
+  api_replica_2:
+    build: .
+    command: npm --workspace=@fairdrop/api run start
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://postgres:password@postgres:5432/fairdrop
+    ports:
+      - "4002:4000"
+    depends_on:
+      - redis
+      - postgres
+    restart: always
+
+volumes:
+  redis_data:
+  postgres_data:

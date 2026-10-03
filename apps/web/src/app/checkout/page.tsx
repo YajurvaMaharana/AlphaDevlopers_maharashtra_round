@@ -22,12 +22,16 @@ export default function CheckoutPage() {
   const [secondsRemaining, setSecondsRemaining] = useState(120);
   const [seatNumber, setSeatNumber] = useState<number>(42);
   const [reservationId, setReservationId] = useState<string>('res_mock_42');
-  const [idempotencyKey] = useState<string>(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState<string>('');
   const [name, setName] = useState('Alex Rivers');
   const [email, setEmail] = useState('alex.rivers@example.com');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<any | null>(null);
+
+  useEffect(() => {
+    setIdempotencyKey(crypto.randomUUID());
+  }, []);
 
   // 120s Hold Timer
   useEffect(() => {
