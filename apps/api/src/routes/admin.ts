@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { redis } from '../redis';
+import { pool } from '../db';
 import { AdminDropStartInputSchema } from '../../../../packages/shared/admin';
 
 export async function adminRoutes(fastify: FastifyInstance) {
@@ -46,5 +47,74 @@ export async function adminRoutes(fastify: FastifyInstance) {
     redis.publish('drop:events', JSON.stringify({ event: 'reset' }));
     
     return reply.send({ success: true });
+  });
+
+  fastify.post('/config', async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as Record<string, string>;
+    const pipeline = redis.pipeline();
+    for (const [key, value] of Object.entries(body)) {
+      pipeline.hset('admin:config', key, value);
+      if (key === 'initial_inventory') {
+        pipeline.set('inv:available', value);
+      }
+    }
+    await pipeline.exec();
+    return reply.send({ success: true });
+  });
+
+  fastify.get('/invariants', async (request: FastifyRequest, reply: FastifyReply) => {
+    const violations = [];
+    
+    const initialInvStr = await redis.hget('admin:config', 'initial_inventory') || '500';
+    const initialInv = parseInt(initialInvStr, 10);
+    
+    const availableStr = await redis.get('inv:available');
+    const available = availableStr ? parseInt(availableStr, 10) : 0;
+    
+    const keys = await redis.keys('hold_data:*');
+    let heldQty = 0;
+    if (keys.length > 0) {
+      const holds = await Promise.all(keys.map(k => redis.hget(k, 'qty')));
+      const statuses = await Promise.all(keys.map(k => redis.hget(k, 'status')));
+      heldQty = holds.reduce((acc, val, idx) => {
+        if (statuses[idx] === 'COMMITTED') return acc;
+        return acc + parseInt(val || '0', 10);
+      }, 0);
+    }
+    
+    const client = await pool.connect();
+    let soldQty = 0;
+    try {
+      const res = await client.query("SELECT COALESCE(SUM(qty), 0) as total FROM allocations WHERE status = 'COMMITTED'");
+      soldQty = parseInt(res.rows[0].total, 10);
+      
+      const duplicateCommits = await client.query("SELECT user_id, round_id, COUNT(*) FROM allocations WHERE status = 'COMMITTED' GROUP BY user_id, round_id HAVING COUNT(*) > 1");
+      if (duplicateCommits.rows.length > 0) {
+        violations.push({ type: 'DUPLICATE_COMMITS', details: duplicateCommits.rows });
+      }
+
+      const userCommits = await client.query("SELECT user_id, SUM(qty) as total FROM allocations WHERE status = 'COMMITTED' GROUP BY user_id HAVING SUM(qty) > 2");
+      if (userCommits.rows.length > 0) {
+         violations.push({ type: 'USER_LIMIT_EXCEEDED_PG', details: userCommits.rows });
+      }
+    } finally {
+      client.release();
+    }
+    
+    const userHoldKeys = await redis.keys('hold:user:*');
+    if (userHoldKeys.length > 0) {
+       for (const key of userHoldKeys) {
+          const qty = await redis.hget(key, 'qty');
+          if (qty && parseInt(qty, 10) > 2) {
+             violations.push({ type: 'USER_LIMIT_EXCEEDED_REDIS', key, qty });
+          }
+       }
+    }
+
+    if (soldQty + heldQty + available !== initialInv) {
+      violations.push({ type: 'INVENTORY_MISMATCH', soldQty, heldQty, available, expected: initialInv });
+    }
+
+    return reply.send({ violations, soldQty, heldQty, available, initialInv });
   });
 }

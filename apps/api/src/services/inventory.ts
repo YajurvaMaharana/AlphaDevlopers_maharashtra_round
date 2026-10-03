@@ -125,11 +125,11 @@ export async function runInventoryJanitor() {
     
     if (expiredHolds.length > 0) {
       for (const holdId of expiredHolds) {
-        const userId = await redis.hget(\`hold_data:\${holdId}\`, 'userId');
+        const userId = await redis.hget(`hold_data:${holdId}`, 'userId');
         if (userId) {
           await redis.releaseHold(
             'inv:available', 
-            \`hold:user:\${userId}\`, 
+            `hold:user:${userId}`, 
             'hold:expiries', 
             holdId
           );
