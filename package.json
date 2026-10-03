@@ -1,0 +1,19 @@
+{
+  "name": "fairdrop-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FairDrop: High-demand anti-bot sale and registration platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace=@fairdrop/web run dev",
+    "build:web": "npm --workspace=@fairdrop/web run build",
+    "build:shared": "npm --workspace=@fairdrop/shared run build",
+    "test:shared": "npm --workspace=@fairdrop/shared run test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
