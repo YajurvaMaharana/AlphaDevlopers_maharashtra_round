@@ -1,0 +1,18 @@
+{
+  "name": "@fairdrop/shared",
+  "version": "1.0.0",
+  "description": "Shared Zod schemas, types, error contracts, and anti-bot algorithms for FairDrop",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/tests/shared.test.js"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}
