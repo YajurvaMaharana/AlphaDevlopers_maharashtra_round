@@ -1,0 +1,28 @@
+{
+  "runId": "run_sim_fcfs_001",
+  "scenario": "distributed_botnet",
+  "scenarioName": "Distributed Botnet Flood (FCFS Baseline)",
+  "defensesEnabled": false,
+  "parameters": {
+    "totalClients": 5000,
+    "botRatio": 0.8,
+    "durationSeconds": 30,
+    "totalSeats": 500,
+    "rateLimitRps": 0,
+    "powDifficulty": 0
+  },
+  "metrics": {
+    "botSeatSharePct": 68.4,
+    "humanSeatSharePct": 31.6,
+    "giniCoefficient": 0.82,
+    "speedAdvantageIndex": 0.94,
+    "oversellCount": 14,
+    "p95LatencyMs": 3420,
+    "errorRatePct": 41.2,
+    "totalRequests": 84500,
+    "rejectedRequests": 4200,
+    "seatsSold": 500,
+    "totalSeats": 500
+  },
+  "completedAt": 1718293849000
+}

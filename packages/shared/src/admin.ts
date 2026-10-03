@@ -147,3 +147,39 @@ export const AdminChaosResponseSchema = z.object({
   details: z.string()
 });
 export type AdminChaosResponse = z.infer<typeof AdminChaosResponseSchema>;
+
+// ==========================================
+// Bot Lab Run Report (for Defenses OFF vs ON comparisons)
+// ==========================================
+export const RunReportMetricsSchema = z.object({
+  botSeatSharePct: z.number().min(0).max(100),
+  humanSeatSharePct: z.number().min(0).max(100),
+  giniCoefficient: z.number().min(0).max(1),
+  speedAdvantageIndex: z.number().min(-1).max(1),
+  oversellCount: z.number().int().default(0),
+  p95LatencyMs: z.number().nonnegative(),
+  errorRatePct: z.number().min(0).max(100),
+  totalRequests: z.number().int().nonnegative().optional(),
+  rejectedRequests: z.number().int().nonnegative().optional(),
+  seatsSold: z.number().int().nonnegative().optional(),
+  totalSeats: z.number().int().default(500)
+});
+export type RunReportMetrics = z.infer<typeof RunReportMetricsSchema>;
+
+export const RunReportSchema = z.object({
+  runId: z.string(),
+  scenario: BotLabScenarioEnum,
+  scenarioName: z.string().optional(),
+  defensesEnabled: z.boolean(),
+  parameters: z.object({
+    totalClients: z.number().int(),
+    botRatio: z.number(),
+    durationSeconds: z.number().int(),
+    totalSeats: z.number().int().default(500),
+    rateLimitRps: z.number().optional(),
+    powDifficulty: z.number().optional()
+  }),
+  metrics: RunReportMetricsSchema,
+  completedAt: z.number().int().positive()
+});
+export type RunReport = z.infer<typeof RunReportSchema>;
