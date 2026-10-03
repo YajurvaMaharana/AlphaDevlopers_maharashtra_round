@@ -30,6 +30,7 @@ import {
   AdminInvariantsResponse,
   AdminChaosRequest,
   AdminChaosResponse,
+  RunReport,
   AppError,
   createAppError
 } from '@fairdrop/shared';
@@ -254,6 +255,11 @@ export const api = {
       request<AdminChaosResponse>('/admin/chaos', {
         method: 'POST',
         body: JSON.stringify(body),
+      }),
+
+    getReports: (): Promise<RunReport[]> =>
+      request<RunReport[]>('/reports', {
+        method: 'GET',
       }),
   },
 };

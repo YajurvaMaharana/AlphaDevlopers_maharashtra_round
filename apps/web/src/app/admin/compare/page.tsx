@@ -153,13 +153,19 @@ function CompareContent() {
   const [reportOn, setReportOn] = useState<RunReport>(STATIC_DEFENSES_ON_REPORT);
   const [loadSource, setLoadSource] = useState<'static_json' | 'embedded'>('embedded');
 
-  // Load static JSON files from public directory on mount (works offline & without backend)
+  // Load reports from query params or static JSON files
   useEffect(() => {
     async function loadReports() {
+      const leftId = searchParams?.get('left');
+      const rightId = searchParams?.get('right');
+
       try {
+        const leftUrl = leftId ? `/reports/${encodeURIComponent(leftId)}` : '/reports/defenses-off.json';
+        const rightUrl = rightId ? `/reports/${encodeURIComponent(rightId)}` : '/reports/defenses-on.json';
+
         const [resOff, resOn] = await Promise.all([
-          fetch('/reports/defenses-off.json'),
-          fetch('/reports/defenses-on.json'),
+          fetch(leftUrl),
+          fetch(rightUrl),
         ]);
 
         if (resOff.ok && resOn.ok) {
@@ -175,7 +181,7 @@ function CompareContent() {
     }
 
     loadReports();
-  }, []);
+  }, [searchParams]);
 
   // Generate dynamic headline sentence
   const headline = useMemo(() => {
