@@ -91,6 +91,13 @@ export const ReceiptResponseSchema = z.object({
   currency: z.string(),
   txHash: z.string(),
   merkleProof: z.array(z.string()).optional(),
-  qrCodeUrl: z.string().optional()
+  qrCodeUrl: z.string().optional(),
+  allocationId: z.string().optional(),
+  queueBatch: z.string().optional(),
+  rank: z.number().int().positive().optional(),
+  riskTier: z.string().optional(),
+  commitment: z.string().optional(),
+  revealedSeed: z.string().optional(),
+  merkleRoot: z.string().optional()
 });
 export type ReceiptResponse = z.infer<typeof ReceiptResponseSchema>;

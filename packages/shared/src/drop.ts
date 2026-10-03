@@ -194,6 +194,10 @@ export const DropProofResponseSchema = z.object({
   merkleRoot: z.string(),
   merkleProof: z.array(z.string()),
   userRank: z.number().int().positive(),
-  isVerified: z.boolean()
+  isVerified: z.boolean(),
+  seatNumber: z.number().int().positive().optional(),
+  leafHash: z.string().optional(),
+  participants: z.array(z.string()).optional(),
+  totalParticipants: z.number().int().positive().optional()
 });
 export type DropProofResponse = z.infer<typeof DropProofResponseSchema>;
