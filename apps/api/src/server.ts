@@ -3,6 +3,7 @@ import { env } from './env';
 import { redis } from './redis';
 import { pool } from './db';
 import { jwtVerifyPlugin } from './plugins/jwt';
+import { abuseGuardPlugin } from './plugins/abuseGuard';
 import { authRoutes } from './routes/auth';
 import { dropRoutes } from './routes/drop';
 import { adminRoutes } from './routes/admin';
@@ -77,6 +78,7 @@ async function runMigrations() {
 }
 
 // Register plugins
+fastify.register(abuseGuardPlugin);
 fastify.register(jwtVerifyPlugin);
 
 // Register routes

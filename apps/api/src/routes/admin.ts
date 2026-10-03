@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { redis } from '../redis';
 import { pool } from '../db';
 import { AdminDropStartInputSchema } from '../../../../packages/shared/admin';
+import { flushDefensesCache } from '../plugins/abuseGuard';
+import { getOperationalMetrics } from '../services/metrics';
 
 export async function adminRoutes(fastify: FastifyInstance) {
   
@@ -116,5 +118,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send({ violations, soldQty, heldQty, available, initialInv });
+  });
+
+  fastify.post('/defenses', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { on } = request.body as { on: boolean };
+    await redis.set('defenses:enabled', on ? 'true' : 'false');
+    flushDefensesCache();
+    return reply.send({ success: true, defensesEnabled: on });
+  });
+
+  fastify.get('/metrics', async (request: FastifyRequest, reply: FastifyReply) => {
+    const metrics = await getOperationalMetrics();
+    return reply.send(metrics);
   });
 }
