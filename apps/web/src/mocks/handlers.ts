@@ -149,7 +149,7 @@ export const handlers = [
   http.get('*/drop/commitment', () => {
     const response: DropCommitmentResponse = {
       dropId: 'fairdrop-main-2026',
-      commitment: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
       algorithm: 'SHA-256',
       publishedAt: Date.now() - 3600000,
       description: 'SHA-256 cryptographic commitment of the random seed published before the drop.'
@@ -165,14 +165,17 @@ export const handlers = [
     const response: DropProofResponse = {
       dropId: 'fairdrop-main-2026',
       userId,
-      revealedSeed: 'fairdrop_seed_a9f82c41829e102934bbff',
-      commitment: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      merkleRoot: '7d14210a483ef30b59b58102a98402ff8391039a8201a09428b4982a01948ba2',
+      revealedSeed: 'fairdrop_seed_10',
+      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
+      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
       merkleProof: [
-        '0a1f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a',
-        'f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0'
+        '158d0117b326f4683f9ba6d5e327b863eac8753dafcd7dd262768cf99030c68f',
+        '7720208925e9ef8af9a819a0d2f1bd07d611bab1de06f71af6a7ec0662d4eea8',
+        '364dd8bb4319f93ce984ecc5fa212d8936000099b19f52f1370251e9c3111d2f'
       ],
       userRank: 42,
+      seatNumber: 42,
+      leafHash: 'd29894432e70caac75c92b17533e6033a9ccc4021d605505604c2a8f39881ca9',
       isVerified: true
     };
     return HttpResponse.json(response, { status: 200 });
@@ -216,6 +219,10 @@ export const handlers = [
       receiptId,
       orderId: response.orderId,
       dropId: 'fairdrop-main-2026',
+      allocationId: `alloc_fd_${receiptId.slice(-8)}`,
+      queueBatch: 'Batch #1 (Window A)',
+      rank: 42,
+      riskTier: 'Tier 1 (Low Risk - Human 99.4%)',
       seatNumbers: [42],
       buyerName: body.attendee?.name || 'Alex Rivers',
       buyerEmail: body.attendee?.email || 'alex.rivers@example.com',
@@ -223,7 +230,10 @@ export const handlers = [
       amountCents: 9900,
       currency: 'USD',
       txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-      qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=fairdrop-pass-42'
+      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
+      revealedSeed: 'fairdrop_seed_10',
+      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+      qrCodeUrl: `/verify?receipt=${receiptId}`
     });
 
     return HttpResponse.json(response, { status: 200 });
@@ -238,6 +248,10 @@ export const handlers = [
       receiptId: id,
       orderId: `ord_${id.slice(-6)}`,
       dropId: 'fairdrop-main-2026',
+      allocationId: `alloc_fd_${id.slice(-8)}`,
+      queueBatch: 'Batch #1 (Window A)',
+      rank: 42,
+      riskTier: 'Tier 1 (Low Risk - Human 99.4%)',
       seatNumbers: [42],
       buyerName: 'Alex Rivers',
       buyerEmail: 'alex.rivers@example.com',
@@ -245,7 +259,10 @@ export const handlers = [
       amountCents: 9900,
       currency: 'USD',
       txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-      qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=fairdrop-pass-42'
+      commitment: '815e1f0d09f9bb555fb4347dd2387389b08b47b7b3d35e825814e13f1b80d0ca',
+      revealedSeed: 'fairdrop_seed_10',
+      merkleRoot: '4c99ae1210c44cef692ae0010f5a121fbce47035b9a765436ee4380eae1ca39e',
+      qrCodeUrl: `/verify?receipt=${id}`
     };
 
     return HttpResponse.json(response, { status: 200 });
