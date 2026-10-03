@@ -26,6 +26,7 @@ import {
 import { api } from '@/lib/api';
 import { solvePoW, PoWChallenge, PoWSolution } from '@fairdrop/shared';
 import { CrowdCanvas } from '@/components/CrowdCanvas';
+import { ClientFlowController } from '@/components/ClientFlowController';
 
 export default function WaitingRoomPage() {
   const router = useRouter();
@@ -59,6 +60,7 @@ export default function WaitingRoomPage() {
   // Side Panel
   const [isFairPanelOpen, setIsFairPanelOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'waiting-room' | 'flow-machine'>('waiting-room');
 
   // Format countdown
   const mins = Math.floor(timeRemainingSeconds / 60);
@@ -239,15 +241,35 @@ export default function WaitingRoomPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="p-3 rounded-xl bg-bad/20 border border-bad/40 text-bad text-xs flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {/* View Switcher Tabs */}
+      <div className="flex items-center gap-2 p-1 rounded-xl bg-slate-900/60 border border-white/10 w-fit">
+        <button
+          onClick={() => setActiveTab('waiting-room')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'waiting-room'
+              ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Waiting Room &amp; Crowd Simulation
+        </button>
+        <button
+          onClick={() => setActiveTab('flow-machine')}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'flow-machine'
+              ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Client State Machine &amp; Edge Cases Lab
+        </button>
+      </div>
 
-      {/* Main Waiting Room Layout: Responsive 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      {activeTab === 'flow-machine' ? (
+        <ClientFlowController />
+      ) : (
+        /* Main Waiting Room Layout: Responsive 2-Column Grid */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Live Crowd Canvas & Interactive Queue Controller */}
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-panel-violet rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden">
@@ -567,6 +589,7 @@ export default function WaitingRoomPage() {
           </AnimatePresence>
         </aside>
       </div>
+      )}
     </div>
   );
 }

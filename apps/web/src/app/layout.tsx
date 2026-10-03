@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { MswProvider } from '../components/MswProvider';
+import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 import Link from 'next/link';
 import { ShieldCheck, Activity, Users, Ticket, CheckCircle2, ShieldAlert, Cpu } from 'lucide-react';
 
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="antialiased min-h-screen flex flex-col bg-[#070c1e] text-slate-100 selection:bg-violet-500/30 selection:text-violet-200">
         <MswProvider>
+          <ServiceWorkerRegister />
           {/* Top Global Navigation */}
           <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 lg:px-8 py-3 backdrop-blur-md">
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
