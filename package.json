@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "name": "fairdrop-monorepo",
   "version": "1.0.0",
   "private": true,
@@ -9,27 +8,15 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm --workspace=@fairdrop/web run dev",
     "dev:web": "npm --workspace=@fairdrop/web run dev",
     "build:web": "npm --workspace=@fairdrop/web run build",
     "build:shared": "npm --workspace=@fairdrop/shared run build",
-    "test:shared": "npm --workspace=@fairdrop/shared run test"
+    "test:shared": "npm --workspace=@fairdrop/shared run test",
+    "test": "vitest"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
-=======
-  "name": "fairdrop",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {
+    "typescript": "^5.4.5",
     "vitest": "^5.0.3"
->>>>>>> a2532a1 (feat(shared): add Zod schemas, TypeScript types, and math utilities)
   }
 }
