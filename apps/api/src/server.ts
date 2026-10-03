@@ -4,6 +4,9 @@ import { redis } from './redis';
 import { pool } from './db';
 import { jwtVerifyPlugin } from './plugins/jwt';
 import { authRoutes } from './routes/auth';
+import { dropRoutes } from './routes/drop';
+import { adminRoutes } from './routes/admin';
+import { startDropWorker } from './services/drop';
 
 // Setup Fastify with structured logging
 const fastify = Fastify({
@@ -59,6 +62,8 @@ fastify.register(jwtVerifyPlugin);
 
 // Register routes
 fastify.register(authRoutes, { prefix: '/auth' });
+fastify.register(dropRoutes, { prefix: '/drop' });
+fastify.register(adminRoutes, { prefix: '/admin' });
 
 // Health check endpoint with replica ID
 fastify.get('/health', async (request, reply) => {
@@ -74,6 +79,9 @@ async function start() {
   try {
     // Run migrations before accepting requests
     await runMigrations();
+    
+    // Start background worker for Drop engine (it handles locking automatically)
+    startDropWorker();
     
     // Start fastify listener
     await fastify.listen({ port: parseInt(env.PORT, 10), host: '0.0.0.0' });
