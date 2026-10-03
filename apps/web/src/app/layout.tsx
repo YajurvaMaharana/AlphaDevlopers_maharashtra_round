@@ -3,7 +3,7 @@ import './globals.css';
 import { MswProvider } from '../components/MswProvider';
 import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 import Link from 'next/link';
-import { ShieldCheck, Activity, Users, Ticket, CheckCircle2, ShieldAlert, Cpu } from 'lucide-react';
+import { ShieldCheck, Activity, Users, Ticket, CheckCircle2, ShieldAlert, Cpu, Layers } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'FairDrop — High-Demand Sale Platform (500 Seats / 50k Fans)',
@@ -84,6 +84,13 @@ export default function RootLayout({
                 >
                   <Cpu className="w-3.5 h-3.5" />
                   Bot Lab
+                </Link>
+                <Link
+                  href="/admin/compare"
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all flex items-center gap-1.5"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Compare
                 </Link>
                 <Link
                   href="/admin/dashboard"
