@@ -594,6 +594,13 @@ function AdminDashboardContent() {
                 asnType: 'RESIDENTIAL',
                 severity: 'good',
               },
+              {
+                type: 'APPEAL_GRANTED',
+                message: 'User downgraded High -> Standard lane tier (OTP verification successful)',
+                ipMasked: `104.14.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'RESIDENTIAL',
+                severity: 'good',
+              }
             ];
 
             const chosen = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
@@ -628,12 +635,26 @@ function AdminDashboardContent() {
       }
     };
 
+    const channel = new BroadcastChannel('fairdrop_tab_sync_v1');
+    channel.onmessage = (e) => {
+      if (e.data?.type === 'DASHBOARD_EVENT' && e.data?.event) {
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const newEvent: SecurityEvent = {
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          timestamp: timeStr,
+          ...e.data.event,
+        };
+        setEvents((prev) => [newEvent, ...prev.slice(0, 49)]);
+      }
+    };
+
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
     startStream();
 
     return () => {
+      channel.close();
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }

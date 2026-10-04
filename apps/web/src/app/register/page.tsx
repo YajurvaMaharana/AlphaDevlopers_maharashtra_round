@@ -341,6 +341,37 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Quick Select Persona */}
+            <div className="space-y-3 pb-3">
+              <label className="text-xs font-mono text-slate-400 block text-center">
+                DUMMY TEST ACCOUNT SELECTOR
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEmail('fan@example.com')}
+                  className={`py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all ${
+                    email === 'fan@example.com'
+                      ? 'bg-good/20 border-good/50 text-good'
+                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  Low Risk Fan (fan@example.com)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmail('bot-datacenter@test.com')}
+                  className={`py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all ${
+                    email === 'bot-datacenter@test.com'
+                      ? 'bg-bad/20 border-bad/50 text-bad'
+                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  High Risk Botnet (bot-datacenter@test.com)
+                </button>
+              </div>
+            </div>
+
             {/* Divider */}
             <div className="relative flex items-center justify-center">
               <div className="border-t border-white/10 w-full" />
@@ -474,7 +505,7 @@ export default function RegisterPage() {
                 <span className="text-slate-400">Risk Assessment:</span>
                 <span
                   className={`px-2 py-0.5 rounded-full font-mono font-bold text-[11px] ${
-                    userResult.riskTier === 'low'
+                    userResult.riskTier === 'low' || userResult.riskTier === 'STANDARD'
                       ? 'bg-good/20 text-good border border-good/30'
                       : 'bg-bad/20 text-bad border border-bad/30'
                   }`}

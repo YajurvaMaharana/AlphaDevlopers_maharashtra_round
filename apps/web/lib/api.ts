@@ -144,27 +144,40 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
 
   if (normalizedPath.includes('/auth/verify')) {
     const email = bodyObj.email || 'fan@example.com';
+    const isHighRisk = email.includes('bot') || email.includes('high');
+    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
     return {
       success: true,
-      token: `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      token: `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`,
       user: {
         id: `usr_${Date.now().toString(36)}`,
         email,
-        riskTier: 'low'
+        riskTier
       }
     } as unknown as T;
   }
 
   if (normalizedPath.includes('/me/state')) {
+    let isHighRisk = false;
+    let email = 'fan@example.com';
+    const authHeader = options.headers instanceof Headers 
+      ? options.headers.get('Authorization') 
+      : (options.headers as any)?.Authorization;
+      
+    if (authHeader && authHeader.includes('highrisk')) {
+      isHighRisk = true;
+      email = 'bot-datacenter@test.com';
+    }
+
     return {
       userId: 'usr_mock_001',
-      email: 'fan@example.com',
+      email,
       status: 'WAITING_ROOM',
       queuePosition: 84,
       estimatedWaitSeconds: 45,
       reservation: null,
       receiptId: null,
-      riskTier: 'low',
+      riskTier: isHighRisk ? 'HIGH_RISK' : 'low',
       powRequired: true,
       powDifficulty: 4
     } as unknown as T;

@@ -169,7 +169,9 @@ export const handlers = [
   http.post('*/auth/verify', async ({ request }) => {
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
-    const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const isHighRisk = email.includes('bot') || email.includes('high');
+    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
@@ -179,7 +181,7 @@ export const handlers = [
         id: `usr_${Date.now().toString(36)}`,
         email,
         fairId,
-        riskTier: 'low',
+        riskTier,
         authMethod: 'otp'
       }
     };
@@ -189,7 +191,9 @@ export const handlers = [
   http.post('/auth/verify', async ({ request }) => {
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
-    const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const isHighRisk = email.includes('bot') || email.includes('high');
+    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
@@ -199,7 +203,7 @@ export const handlers = [
         id: `usr_${Date.now().toString(36)}`,
         email,
         fairId,
-        riskTier: 'low',
+        riskTier,
         authMethod: 'otp'
       }
     };
@@ -209,7 +213,9 @@ export const handlers = [
   http.post('/api/auth/verify', async ({ request }) => {
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
-    const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const isHighRisk = email.includes('bot') || email.includes('high');
+    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
@@ -219,7 +225,7 @@ export const handlers = [
         id: `usr_${Date.now().toString(36)}`,
         email,
         fairId,
-        riskTier: 'low',
+        riskTier,
         authMethod: 'otp'
       }
     };
@@ -228,31 +234,37 @@ export const handlers = [
   }),
 
   // 3. GET /me/state
-  http.get('*/me/state', async () => {
+  http.get('*/me/state', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization') || '';
+    const isHighRisk = authHeader.includes('highrisk');
+
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
-      email: 'fan@example.com',
+      email: isHighRisk ? 'bot-datacenter@test.com' : 'fan@example.com',
       status: mockDb.dropPhase === 'WAITING_ROOM' ? 'WAITING_ROOM' : 'QUEUED',
       queuePosition: 84,
       estimatedWaitSeconds: 45,
       reservation: null,
       receiptId: null,
-      riskTier: 'low',
+      riskTier: isHighRisk ? 'HIGH_RISK' : 'low',
       powRequired: mockDb.powRequired,
       powDifficulty: mockDb.powDifficulty
     };
     return HttpResponse.json(response, { status: 200 });
   }),
-  http.get('/me/state', async () => {
+  http.get('/me/state', async ({ request }) => {
+    const authHeader = request.headers.get('Authorization') || '';
+    const isHighRisk = authHeader.includes('highrisk');
+
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
-      email: 'fan@example.com',
+      email: isHighRisk ? 'bot-datacenter@test.com' : 'fan@example.com',
       status: mockDb.dropPhase === 'WAITING_ROOM' ? 'WAITING_ROOM' : 'QUEUED',
       queuePosition: 84,
       estimatedWaitSeconds: 45,
       reservation: null,
       receiptId: null,
-      riskTier: 'low',
+      riskTier: isHighRisk ? 'HIGH_RISK' : 'low',
       powRequired: mockDb.powRequired,
       powDifficulty: mockDb.powDifficulty
     };

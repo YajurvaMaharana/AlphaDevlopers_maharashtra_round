@@ -59,6 +59,11 @@ export function ClientFlowController() {
   const [copiedHash, setCopiedHash] = useState(false);
   const [demoActionLoading, setDemoActionLoading] = useState(false);
 
+  const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
+  const [appealOtp, setAppealOtp] = useState('123456');
+  const [isAppealing, setIsAppealing] = useState(false);
+  const [appealSuccess, setAppealSuccess] = useState(false);
+
   // SSE Stream hook
   const sse = useSSEStream({
     autoConnect: state.step === 'waiting' || state.step === 'joined',
@@ -109,6 +114,47 @@ export function ClientFlowController() {
       failPayment(err?.code || 'PAYMENT_FAILED', err?.message || 'Payment processor declined card.');
     } finally {
       setDemoActionLoading(false);
+    }
+  };
+
+  const handleAppealSubmit = async () => {
+    setIsAppealing(true);
+    try {
+      const token = localStorage.getItem('fairdrop_auth_token') || undefined;
+      const res = await api.auth.appeal({
+        fairId: state.fairId || 'fair_id_test',
+        email: state.email || 'bot-datacenter@test.com',
+        authMethod: 'otp',
+        otp: appealOtp,
+        clientFingerprint: 'test-fp'
+      }, token);
+
+      setAppealSuccess(true);
+      setIsAppealModalOpen(false);
+
+      // Emit to dashboard via BroadcastChannel
+      const channel = new BroadcastChannel('fairdrop_tab_sync_v1');
+      channel.postMessage({
+        type: 'DASHBOARD_EVENT',
+        event: {
+          type: 'APPEAL_GRANTED',
+          message: `User downgraded High -> Standard lane tier (Score: ${res.newScore || 30})`,
+          ipMasked: `73.4.${Math.floor(10 + Math.random() * 200)}.xx`,
+          asnType: 'RESIDENTIAL',
+          severity: 'good'
+        }
+      });
+      channel.close();
+      
+      // Update local state by forcing a bootstrap
+      setTimeout(() => {
+         bootstrap();
+      }, 1000);
+      
+    } catch (e) {
+      console.error('Appeal failed', e);
+    } finally {
+      setIsAppealing(false);
     }
   };
 
@@ -275,7 +321,71 @@ export function ClientFlowController() {
 
           {/* STATE: WAITING OR JOINED */}
           {(state.step === 'waiting' || state.step === 'joined') && (
-            <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-5">
+            <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-5 relative overflow-hidden">
+              {(state.tier === 'HIGH_RISK' || state.tier === 'high') && !appealSuccess && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />
+                    <div>
+                      <h5 className="text-sm font-bold text-red-300">High Risk Network Signals Detected</h5>
+                      <p className="text-xs text-red-400/80 mt-0.5">Extra verification required to retain queue position.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsAppealModalOpen(true)}
+                    className="shrink-0 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+                  >
+                    Appeal Risk Status
+                  </button>
+                </div>
+              )}
+              {appealSuccess && (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div>
+                    <h5 className="text-sm font-bold text-emerald-300">Appeal Successful</h5>
+                    <p className="text-xs text-emerald-400/80 mt-0.5">You've been moved to the standard lane. Queue position maintained.</p>
+                  </div>
+                </div>
+              )}
+
+              {isAppealModalOpen && (
+                <div className="absolute inset-0 z-10 bg-slate-950/95 backdrop-blur-md p-6 flex flex-col justify-center border border-white/10 m-0">
+                  <div className="max-w-sm mx-auto space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <ShieldAlert className="w-6 h-6 text-red-400" />
+                      <h4 className="text-lg font-bold text-white">Risk Status Appeal</h4>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Enter the 6-digit verification code sent to your email to prove human presence and lower your risk tier.
+                    </p>
+                    <div>
+                      <input
+                        type="text"
+                        value={appealOtp}
+                        onChange={(e) => setAppealOtp(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-black/50 border border-white/10 text-white text-center font-mono tracking-widest focus:border-violet-500 outline-none"
+                        placeholder="123456"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setIsAppealModalOpen(false)}
+                        className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium border border-white/5 transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAppealSubmit}
+                        disabled={isAppealing}
+                        className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-lg shadow-violet-600/30 transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center"
+                      >
+                        {isAppealing ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Submit Appeal'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
