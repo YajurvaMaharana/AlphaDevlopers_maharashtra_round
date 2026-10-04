@@ -484,6 +484,25 @@ export const handlers = [
         admitted: 450,
         reserved: 28,
         paid: 142
+      },
+      seatsByLane: {
+        low: mockDb.defensesEnabled ? 125 : 28,
+        medium: mockDb.defensesEnabled ? 14 : 50,
+        high: mockDb.defensesEnabled ? 3 : 64
+      },
+      activeClusters: {
+        count: mockDb.defensesEnabled ? 2 : 7,
+        sizes: mockDb.defensesEnabled ? [12, 8] : [45, 32, 28, 19, 14, 8, 6]
+      },
+      appealsGranted: 4,
+      authMethodShare: {
+        google: 0.68,
+        otp: 0.32
+      },
+      fairnessSla: {
+        target: 0.05,
+        botSeatShare: mockDb.defensesEnabled ? 0.024 : 0.926,
+        passing: mockDb.defensesEnabled
       }
     };
 

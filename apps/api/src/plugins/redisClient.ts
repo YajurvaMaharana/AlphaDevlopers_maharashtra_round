@@ -168,6 +168,9 @@ export class InMemoryRedisMock {
       zadd: (k: string, s: number, m: string) => { operations.push(async () => [null, await this.zadd(k, s, m)]); return pipe; },
       zrangebyscore: (k: string, min: any, max: any) => { operations.push(async () => [null, await this.zrangebyscore(k, min, max)]); return pipe; },
       rpush: (k: string, ...el: string[]) => { operations.push(async () => [null, await this.rpush(k, ...el)]); return pipe; },
+      lrange: (k: string, s: number, e: number) => { operations.push(async () => [null, await this.lrange(k, s, e)]); return pipe; },
+      sadd: (k: string, ...m: string[]) => { operations.push(async () => [null, await this.sadd(k, ...m)]); return pipe; },
+      smembers: (k: string) => { operations.push(async () => [null, await this.smembers(k)]); return pipe; },
       exec: async () => {
         return Promise.all(operations.map((op) => op()));
       },

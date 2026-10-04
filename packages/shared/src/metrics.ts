@@ -16,6 +16,32 @@ export const FunnelMetricsSchema = z.object({
 });
 export type FunnelMetrics = z.infer<typeof FunnelMetricsSchema>;
 
+export const SeatsByLaneSchema = z.object({
+  low: z.number().int().nonnegative().default(0),
+  medium: z.number().int().nonnegative().default(0),
+  high: z.number().int().nonnegative().default(0)
+});
+export type SeatsByLane = z.infer<typeof SeatsByLaneSchema>;
+
+export const ActiveClustersSchema = z.object({
+  count: z.number().int().nonnegative().default(0),
+  sizes: z.array(z.number().int().nonnegative()).default([])
+});
+export type ActiveClusters = z.infer<typeof ActiveClustersSchema>;
+
+export const AuthMethodShareSchema = z.object({
+  google: z.number().min(0).max(1).default(0.5),
+  otp: z.number().min(0).max(1).default(0.5)
+});
+export type AuthMethodShare = z.infer<typeof AuthMethodShareSchema>;
+
+export const FairnessSlaSchema = z.object({
+  target: z.number().min(0).max(1).default(0.05),
+  botSeatShare: z.number().min(0).max(1),
+  passing: z.boolean()
+});
+export type FairnessSla = z.infer<typeof FairnessSlaSchema>;
+
 export const LiveMetricsPayloadSchema = z.object({
   timestamp: z.number().int().positive(),
   requestsPerSecond: z.number().nonnegative(),
@@ -34,7 +60,14 @@ export const LiveMetricsPayloadSchema = z.object({
   powBlockedCount: z.number().int().nonnegative(),
   oversellCount: z.number().int().default(0), // strict invariant: must be 0
   defensesEnabled: z.boolean(),
-  funnel: FunnelMetricsSchema
+  funnel: FunnelMetricsSchema,
+
+  // Extended telemetry & SLA fields
+  seatsByLane: SeatsByLaneSchema.optional(),
+  activeClusters: ActiveClustersSchema.optional(),
+  appealsGranted: z.number().int().nonnegative().optional(),
+  authMethodShare: AuthMethodShareSchema.optional(),
+  fairnessSla: FairnessSlaSchema.optional()
 });
 export type LiveMetricsPayload = z.infer<typeof LiveMetricsPayloadSchema>;
 
