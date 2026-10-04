@@ -12,6 +12,7 @@ import { upsertGoogleUser, upsertOtpUser, computeFairId } from '../db/postgres';
 import { updateRiskScore, getRiskTier } from '../services/riskIntegration';
 import { extractClientIp, lookupIpNetwork, checkTimezoneMismatch } from '../services/networkSignals';
 import { recordIdentityCluster } from '../services/clusterDetector';
+import { getTicketByFairId, computeMonotonicEta } from '../services/queueService';
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
@@ -256,8 +257,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
   fastify.get('/me/state', async (request, reply) => {
     const authHeader = request.headers.authorization;
-    let userId = 'usr_anonymous';
-    let email = 'anonymous@fairdrop.io';
+    let userId = (request.headers['x-user-id'] as string) || 'usr_anonymous';
+    let email = (request.headers['x-user-email'] as string) || 'anonymous@fairdrop.io';
+    let fairId = (request.headers['x-fair-id'] as string) || '';
     let riskTier: 'low' | 'medium' | 'high' = 'low';
     let authMethod: 'google' | 'otp' = 'otp';
 
@@ -267,20 +269,52 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (session && session.userId) {
         userId = session.userId;
         email = session.email || email;
+        fairId = session.fairId || fairId;
         riskTier = (session.riskTier as any) || riskTier;
         authMethod = (session.authMethod as any) || authMethod;
       }
     }
 
+    if (!fairId && userId && userId !== 'usr_anonymous') {
+      const savedFairId = await fastify.redis.get(`user:${userId}:fairId`);
+      if (savedFairId) fairId = savedFairId;
+    }
+
     const powRequired = fastify.defensesEnabled !== false;
     const powDifficulty = riskTier === 'high' ? 6 : riskTier === 'medium' ? 5 : 4;
+
+    let positionToken: string | undefined = undefined;
+    let ticketId: string | undefined = undefined;
+    let queuePosition = 84;
+    let estimatedWaitSeconds = 45;
+    let status = 'WAITING_ROOM';
+
+    if (fairId) {
+      const ticket = await getTicketByFairId(fastify.redis, fairId);
+      if (ticket) {
+        positionToken = ticket.positionToken;
+        ticketId = ticket.ticketId;
+        queuePosition = ticket.rank;
+        status = ticket.status;
+
+        // Monotonic bounded ETA: never jumps backwards by more than one batch (30s)
+        estimatedWaitSeconds = computeMonotonicEta(ticket.rank, ticket.lastEtaSec);
+        // Persist updated ETA
+        await fastify.redis.hset(`drop:fairdrop-main-2026:ticket:${fairId}`, 'lastEtaSec', String(estimatedWaitSeconds));
+      }
+    }
 
     return reply.send({
       userId,
       email,
-      status: 'WAITING_ROOM',
-      queuePosition: 84,
-      estimatedWaitSeconds: 45,
+      fairId: fairId || undefined,
+      positionToken,
+      ticketId,
+      status,
+      queuePosition,
+      position: queuePosition,
+      estimatedWaitSeconds,
+      etaSec: estimatedWaitSeconds,
       reservation: null,
       receiptId: null,
       riskTier,

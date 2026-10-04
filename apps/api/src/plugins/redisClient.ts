@@ -2,16 +2,22 @@ import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
 
-class InMemoryRedisMock {
-  private store = new Map<string, any>();
-  private hashStore = new Map<string, Map<string, any>>();
-  private sets = new Map<string, Set<string>>();
-  private lists = new Map<string, string[]>();
-  private sortedSets = new Map<string, Map<string, number>>();
+// Shared in-memory data store across mock instances (simulating external Redis cluster)
+const globalStore = new Map<string, any>();
+const globalHashStore = new Map<string, Map<string, any>>();
+const globalSets = new Map<string, Set<string>>();
+const globalLists = new Map<string, string[]>();
+const globalSortedSets = new Map<string, Map<string, number>>();
+
+export class InMemoryRedisMock {
+  private store = globalStore;
+  private hashStore = globalHashStore;
+  private sets = globalSets;
+  private lists = globalLists;
+  private sortedSets = globalSortedSets;
 
   async get(key: string) { return this.store.get(key) ?? null; }
   async set(key: string, val: any, ...args: any[]) {
-    // Handle NX / PX flags if provided
     const nxIndex = args.findIndex((a) => typeof a === 'string' && a.toUpperCase() === 'NX');
     if (nxIndex !== -1) {
       if (this.store.has(key)) return null;
@@ -19,13 +25,16 @@ class InMemoryRedisMock {
     this.store.set(key, String(val));
     return 'OK';
   }
-  async del(key: string) {
-    this.store.delete(key);
-    this.hashStore.delete(key);
-    this.sets.delete(key);
-    this.lists.delete(key);
-    this.sortedSets.delete(key);
-    return 1;
+  async del(...keys: string[]) {
+    let count = 0;
+    for (const key of keys) {
+      if (this.store.delete(key)) count++;
+      if (this.hashStore.delete(key)) count++;
+      if (this.sets.delete(key)) count++;
+      if (this.lists.delete(key)) count++;
+      if (this.sortedSets.delete(key)) count++;
+    }
+    return count || 1;
   }
   async expire(key: string, seconds: number) { return 1; }
   async incr(key: string) {
@@ -147,6 +156,7 @@ class InMemoryRedisMock {
   pipeline() {
     const operations: Array<() => Promise<any>> = [];
     const pipe = {
+      del: (k: string) => { operations.push(async () => [null, await this.del(k)]); return pipe; },
       hgetall: (k: string) => { operations.push(async () => [null, await this.hgetall(k)]); return pipe; },
       scard: (k: string) => { operations.push(async () => [null, await this.scard(k)]); return pipe; },
       get: (k: string) => { operations.push(async () => [null, await this.get(k)]); return pipe; },

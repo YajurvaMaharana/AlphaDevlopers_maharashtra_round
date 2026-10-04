@@ -189,6 +189,9 @@ export const UserStateResponseSchema = z.object({
   // Extended / existing fields
   userId: z.string().optional(),
   email: z.string().optional(),
+  fairId: z.string().optional(),
+  positionToken: z.string().optional(),
+  authMethod: AuthMethodEnum.optional(),
   status: UserStateStatusEnum.optional(),
   queuePosition: z.number().int().nullable().optional(),
   estimatedWaitSeconds: z.number().int().nullable().optional(),

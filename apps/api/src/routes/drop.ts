@@ -2,6 +2,8 @@ import { FastifyPluginAsync } from 'fastify';
 import crypto from 'crypto';
 import { extractClientIp, lookupIpNetwork } from '../services/networkSignals';
 import { recordIdentityCluster } from '../services/clusterDetector';
+import { getOrCreateTicket, getTicketByFairId, computeMonotonicEta } from '../services/queueService';
+import { computeFairId } from '../db/postgres';
 
 export const dropRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
@@ -149,13 +151,16 @@ export const dropRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // =========================================================================
-  // 5. POST /drop/join (Join Waiting Room)
+  // 5. POST /drop/join (Join Waiting Room - Idempotent against FairID)
   // =========================================================================
   fastify.post('/drop/join', async (request, reply) => {
     const body = (request.body || {}) as Record<string, any>;
     const dropId = body.dropId || body.eventId || 'fairdrop-main-2026';
     const userId = body.userId || body.clientId || `usr_${Date.now().toString(36)}`;
     const fingerprint = body.fingerprint || body.deviceFp || 'fp_anonymous_client';
+
+    // Compute or retrieve FairID
+    const fairId = body.fairId || computeFairId(body.email || userId, fingerprint);
 
     const clientIp = extractClientIp(request);
     const netInfo = lookupIpNetwork(clientIp);
@@ -171,48 +176,104 @@ export const dropRoutes: FastifyPluginAsync = async (fastify) => {
       timestamp: Date.now(),
     });
 
-    // Record participant in Redis waiting room
-    await fastify.redis.sadd(`drop:${dropId}:participants`, userId);
-    await fastify.redis.incr(`metrics:funnel:joined:total`);
+    // Idempotent ticket creation stored against FairID
+    const { ticket, isExisting } = await getOrCreateTicket(
+      fastify.redis,
+      dropId,
+      fairId,
+      userId,
+      fingerprint
+    );
+
+    if (!isExisting) {
+      await fastify.redis.incr('metrics:funnel:joined:total');
+    }
+
+    const totalParticipants = await fastify.redis.scard(`drop:${dropId}:participants`);
 
     return reply.status(200).send({
       success: true,
       dropId,
-      status: 'WAITING_ROOM',
-      joinedAt: Date.now(),
-      initialRank: 120,
-      totalParticipants: 50000,
-      message: 'Successfully enrolled in waiting room. Ranks will be shuffled uniformly when drop starts.',
+      ticketId: ticket.ticketId,
+      fairId: ticket.fairId,
+      positionToken: ticket.positionToken,
+      status: ticket.status,
+      joinedAt: ticket.joinedAt,
+      initialRank: ticket.rank,
+      totalParticipants: totalParticipants || 50000,
+      isExisting,
+      message: isExisting
+        ? 'Existing waiting room entry retrieved (idempotent join).'
+        : 'Successfully enrolled in waiting room. Ranks will be shuffled uniformly when drop starts.',
     });
   });
 
   // =========================================================================
-  // 6. GET /drop/stream (Server-Sent Events for Live Queue)
+  // 6. GET /drop/stream (Server-Sent Events with id: for Last-Event-ID resume)
   // =========================================================================
-  fastify.get('/drop/stream', (request, reply) => {
+  fastify.get('/drop/stream', async (request, reply) => {
     reply.raw.setHeader('Content-Type', 'text/event-stream');
     reply.raw.setHeader('Cache-Control', 'no-cache');
     reply.raw.setHeader('Connection', 'keep-alive');
     reply.raw.setHeader('Access-Control-Allow-Origin', '*');
     reply.raw.flushHeaders();
 
-    const intervalId = setInterval(() => {
+    const query = (request.query || {}) as Record<string, string>;
+    const lastEventHeader = request.headers['last-event-id'] as string;
+    let sequenceNumber = parseInt(lastEventHeader || query.lastEventId || '0', 10);
+
+    const fairId = query.fairId || (query.token ? (await fastify.redis.hget(`session:${query.token}`, 'fairId')) : undefined);
+    let userTicket = fairId ? await getTicketByFairId(fastify.redis, fairId) : null;
+
+    const sendEvent = async () => {
+      sequenceNumber += 1;
+      let userPosition = 84;
+      let userEta = 45;
+      let positionToken = `pos_tok_${Date.now()}`;
+
+      if (userTicket) {
+        userPosition = userTicket.rank;
+        positionToken = userTicket.positionToken;
+        userEta = computeMonotonicEta(userTicket.rank, userTicket.lastEtaSec);
+        userTicket.lastEtaSec = userEta;
+        await fastify.redis.hset(`drop:fairdrop-main-2026:ticket:${userTicket.fairId}`, 'lastEtaSec', String(userEta));
+      }
+
       const eventData = {
         type: 'QUEUE_UPDATE',
         data: {
           eventId: 'fairdrop-main-2026',
           phase: 'WAITING_ROOM',
-          position: 84,
+          position: userPosition,
+          positionToken,
           totalInQueue: 50000,
           remainingSeats: 70,
-          estimatedWaitSeconds: 45,
+          estimatedWaitSeconds: userEta,
           isEligibleForReservation: true,
           reservationToken: `res_tok_${Date.now()}`,
           seatNumber: 42,
           reservationExpiresAt: Date.now() + 120000,
         },
       };
+
+      reply.raw.write(`id: ${sequenceNumber}\n`);
       reply.raw.write(`data: ${JSON.stringify(eventData)}\n\n`);
+    };
+
+    // Send immediate initial event upon connect or resume
+    await sendEvent();
+
+    if (query.once === 'true') {
+      reply.raw.end();
+      return;
+    }
+
+    const intervalId = setInterval(async () => {
+      try {
+        await sendEvent();
+      } catch {
+        clearInterval(intervalId);
+      }
     }, 2000);
 
     request.raw.on('close', () => {
