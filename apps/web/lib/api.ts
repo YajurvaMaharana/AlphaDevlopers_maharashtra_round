@@ -98,10 +98,22 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
     const idToken = bodyObj.idToken || 'mock_google_token_12345';
     let googleSub = 'google_sub_1092837465';
     let email = 'google.fan@example.com';
-    if (typeof idToken === 'string' && idToken.startsWith('mock_google_token_')) {
-      const parts = idToken.split('_');
-      googleSub = parts[3] || googleSub;
-      if (parts[4]) email = `${parts[4]}@gmail.com`;
+    if (typeof idToken === 'string') {
+      if (idToken.split('.').length === 3) {
+        try {
+          const payloadBase64 = idToken.split('.')[1];
+          const payloadJson = typeof Buffer !== 'undefined' 
+            ? Buffer.from(payloadBase64, 'base64').toString('utf8')
+            : atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+          const payload = JSON.parse(payloadJson);
+          if (payload.email) email = payload.email;
+          if (payload.sub) googleSub = payload.sub;
+        } catch (e) {}
+      } else if (idToken.startsWith('mock_google_token_')) {
+        const parts = idToken.split('_');
+        googleSub = parts[3] || googleSub;
+        if (parts[4]) email = `${parts[4]}@gmail.com`;
+      }
     }
     const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
     return {

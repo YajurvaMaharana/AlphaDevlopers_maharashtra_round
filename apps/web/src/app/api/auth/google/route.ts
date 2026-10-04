@@ -10,7 +10,15 @@ export async function POST(request: Request) {
     let googleSub = 'google_sub_1092837465';
     let email = 'google.fan@example.com';
 
-    if (idToken.startsWith('mock_google_token_')) {
+    if (idToken && idToken.split('.').length === 3) {
+      try {
+        const payloadBase64 = idToken.split('.')[1];
+        const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8');
+        const payload = JSON.parse(payloadJson);
+        if (payload.email) email = payload.email;
+        if (payload.sub) googleSub = payload.sub;
+      } catch (e) {}
+    } else if (idToken.startsWith('mock_google_token_')) {
       const parts = idToken.split('_');
       googleSub = parts[3] || googleSub;
       if (parts[4]) email = `${parts[4]}@gmail.com`;

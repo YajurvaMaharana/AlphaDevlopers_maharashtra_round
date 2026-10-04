@@ -55,8 +55,19 @@ export const handlers = [
   // 0. POST /auth/google and /api/auth/google
   http.post('*/auth/google', async ({ request }) => {
     const body = await safeJson<{ idToken?: string; deviceFp?: string }>(request);
-    const googleSub = 'google_sub_1092837465';
-    const email = 'google.fan@example.com';
+    let googleSub = 'google_sub_1092837465';
+    let email = 'google.fan@example.com';
+    
+    if (body.idToken && body.idToken.split('.').length === 3) {
+      try {
+        const payloadBase64 = body.idToken.split('.')[1];
+        const payloadJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+        const payload = JSON.parse(payloadJson);
+        if (payload.email) email = payload.email;
+        if (payload.sub) googleSub = payload.sub;
+      } catch (e) {}
+    }
+
     const deviceFp = body.deviceFp || 'fp_mock_browser_001';
     const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
     const token = `jwt_google_mock_${Date.now()}`;
@@ -76,8 +87,19 @@ export const handlers = [
   }),
   http.post('/auth/google', async ({ request }) => {
     const body = await safeJson<{ idToken?: string; deviceFp?: string }>(request);
-    const googleSub = 'google_sub_1092837465';
-    const email = 'google.fan@example.com';
+    let googleSub = 'google_sub_1092837465';
+    let email = 'google.fan@example.com';
+
+    if (body.idToken && body.idToken.split('.').length === 3) {
+      try {
+        const payloadBase64 = body.idToken.split('.')[1];
+        const payloadJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+        const payload = JSON.parse(payloadJson);
+        if (payload.email) email = payload.email;
+        if (payload.sub) googleSub = payload.sub;
+      } catch (e) {}
+    }
+
     const deviceFp = body.deviceFp || 'fp_mock_browser_001';
     const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
     const token = `jwt_google_mock_${Date.now()}`;
@@ -309,22 +331,44 @@ export const handlers = [
 
   // 7. GET /drop/stream (SSE or mock heartbeat)
   http.get('/drop/stream', () => {
-    return new HttpResponse(
-      `: heartbeat\nevent: DROP_STATUS\ndata: ${JSON.stringify({
-        dropId: 'fairdrop-main-2026',
-        phase: mockDb.dropPhase,
-        remainingSeats: mockDb.totalSeats - mockDb.soldSeats - mockDb.heldSeats,
-        totalSeats: mockDb.totalSeats,
-        waitingRoomParticipants: 50000
-      })}\n\n`,
-      {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive'
-        }
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        
+        // Send initial connection heartbeat
+        controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        
+        // Send initial drop status
+        controller.enqueue(encoder.encode(`event: DROP_STATUS\ndata: ${JSON.stringify({
+          dropId: 'fairdrop-main-2026',
+          phase: mockDb.dropPhase,
+          remainingSeats: mockDb.totalSeats - mockDb.soldSeats - mockDb.heldSeats,
+          totalSeats: mockDb.totalSeats,
+          waitingRoomParticipants: 50000
+        })}\n\n`));
+        
+        // Keep the connection open with a recurring heartbeat
+        const intervalId = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+          } catch {
+            clearInterval(intervalId);
+          }
+        }, 5000);
+
+        // Required cleanup to clear the interval if the stream is cancelled
+        return () => clearInterval(intervalId);
+      },
+      cancel() {}
+    });
+
+    return new HttpResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
       }
-    );
+    });
   }),
 
   // 8. GET /drop/commitment

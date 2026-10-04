@@ -76,38 +76,73 @@ export function useSSEStream(options: UseSSEStreamOptions = {}) {
     if (!autoConnect || typeof window === 'undefined') return;
 
     const token = localStorage.getItem('fairdrop_auth_token');
-    const headers: Record<string, string> = {};
+    
+    let streamUrl = url;
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      // Add token to query param for EventSource
+      const u = new URL(url, window.location.origin);
+      u.searchParams.set('token', token);
+      streamUrl = u.toString();
     }
 
-    const client = new ResilientSSEClient({
-      url,
-      headers,
-      baseDelayMs: 1000,
-      maxDelayMs: 25000,
-      onStatusChange: handleStatusChange,
-      onMessage: handleMessage,
-    });
+    const eventSource = new EventSource(streamUrl);
+    handleStatusChange('connecting');
 
-    clientRef.current = client;
-    client.connect();
+    eventSource.onopen = () => {
+      handleStatusChange('connected');
+    };
+
+    const handleEvent = (eventName: string) => (e: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(e.data);
+        handleMessage({
+          id: e.lastEventId,
+          event: eventName,
+          data: parsed,
+          raw: e.data
+        });
+      } catch (err) {}
+    };
+
+    eventSource.onmessage = handleEvent('message');
+    eventSource.addEventListener('QUEUE_UPDATE', handleEvent('QUEUE_UPDATE'));
+    eventSource.addEventListener('QUEUE_POSITION', handleEvent('QUEUE_POSITION'));
+    eventSource.addEventListener('ADMITTED', handleEvent('ADMITTED'));
+    eventSource.addEventListener('TURN_READY', handleEvent('TURN_READY'));
+    eventSource.addEventListener('HOLD_UPDATE', handleEvent('HOLD_UPDATE'));
+    eventSource.addEventListener('RESERVATION_HOLD', handleEvent('RESERVATION_HOLD'));
+    eventSource.addEventListener('DROP_STATUS', handleEvent('DROP_STATUS'));
+
+    eventSource.onerror = () => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        handleStatusChange('offline');
+      } else {
+        handleStatusChange('reconnecting');
+      }
+    };
+
+    (clientRef as any).current = {
+      disconnect: () => eventSource.close(),
+      connect: () => {} // EventSource auto-reconnects
+    };
 
     return () => {
-      client.destroy();
-      clientRef.current = null;
+      eventSource.close();
     };
   }, [url, autoConnect, handleStatusChange, handleMessage]);
 
   const reconnect = useCallback(() => {
     if (clientRef.current) {
-      clientRef.current.disconnect();
-      clientRef.current.connect();
+      (clientRef.current as any).disconnect();
+      // Re-triggering useEffect might require a state toggle if we wanted manual reconnect, 
+      // but EventSource auto-reconnects.
     }
   }, []);
 
   const disconnect = useCallback(() => {
-    clientRef.current?.disconnect();
+    if (clientRef.current) {
+      (clientRef.current as any).disconnect();
+    }
   }, []);
 
   return {
