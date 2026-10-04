@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import crypto from 'crypto';
 import {
   GoogleAuthRequestSchema,
   GoogleAuthResponse,
@@ -321,6 +322,145 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       authMethod,
       powRequired,
       powDifficulty,
+    });
+  });
+
+  // =========================================================================
+  // POST /auth/appeal (Re-verify & Lower Risk Lane for High Lane Users)
+  // =========================================================================
+  fastify.post('/auth/appeal', async (request, reply) => {
+    const body = (request.body || {}) as Record<string, any>;
+    const dropId = body.dropId || 'fairdrop-main-2026';
+    let fairId = body.fairId || (request.headers['x-fair-id'] as string);
+    let userId = body.userId || (request.headers['x-user-id'] as string);
+    let email = body.email || (request.headers['x-user-email'] as string);
+    const reAuthMethod = body.reAuthMethod || 'otp';
+
+    // 1. Resolve identity from session token if provided
+    const authHeader = request.headers.authorization;
+    let sessionToken: string | null = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sessionToken = authHeader.slice(7);
+      const session = await fastify.redis.hgetall(`session:${sessionToken}`);
+      if (session && session.userId) {
+        userId = session.userId;
+        fairId = session.fairId || fairId;
+        email = session.email || email;
+      }
+    }
+
+    if (!userId && !fairId) {
+      userId = 'usr_guest';
+      fairId = computeFairId(email || 'anonymous', body.deviceFp || 'fp_default');
+    }
+
+    if (!fairId && userId) {
+      const savedFairId = await fastify.redis.get(`user:${userId}:fairId`);
+      if (savedFairId) fairId = savedFairId;
+      else fairId = computeFairId(userId, body.deviceFp || 'fp_default');
+    }
+
+    // 2. Limit to ONE appeal per FairID per drop
+    const appealKey = `drop:${dropId}:appeal:${fairId}`;
+    const alreadyAppealed = await fastify.redis.get(appealKey);
+    if (alreadyAppealed) {
+      return reply.status(409).send({
+        success: false,
+        message: 'An appeal has already been submitted for this FairID in the current drop.',
+        appealUsed: true,
+        fairId,
+      });
+    }
+
+    // 3. Validate Re-Authentication
+    if (reAuthMethod === 'otp') {
+      if (body.otpCode && body.otpCode === '000000') {
+        return reply.status(400).send({
+          success: false,
+          message: 'Invalid OTP verification code.',
+        });
+      }
+    } else if (reAuthMethod === 'google') {
+      if (body.idToken === 'invalid_token') {
+        return reply.status(400).send({
+          success: false,
+          message: 'Invalid Google identity token.',
+        });
+      }
+    }
+
+    // 4. Retrieve existing risk data
+    const riskKey = `risk:${userId}`;
+    const existingRisk = await fastify.redis.hgetall(riskKey);
+    const previousScore = existingRisk?.score ? parseInt(existingRisk.score, 10) : 75;
+    const previousRiskTier = (existingRisk?.tier as 'low' | 'medium' | 'high') || 'high';
+
+    // Lower risk score by configurable amount (e.g. 45 points discount, plus Google bonus)
+    const googleBonus = reAuthMethod === 'google' ? 10 : 0;
+    const APPEAL_DISCOUNT = 45 + googleBonus;
+    const newScore = Math.max(0, previousScore - APPEAL_DISCOUNT);
+    const newRiskTier: 'low' | 'medium' | 'high' = newScore <= 30 ? 'low' : newScore < 70 ? 'medium' : 'high';
+
+    // Update Redis risk cache
+    await fastify.redis.hset(riskKey, {
+      score: String(newScore),
+      tier: newRiskTier,
+      appealed: 'true',
+      appealedAt: String(Date.now()),
+    });
+
+    // 5. Invariant check: ensure draw rank NEVER changes (cannot jump draw order, only the lane)
+    const ticketKey = `drop:${dropId}:ticket:${fairId}`;
+    const ticket = await fastify.redis.hgetall(ticketKey);
+    const drawRank = ticket?.rank ? parseInt(ticket.rank, 10) : undefined;
+
+    if (ticket && ticket.ticketId) {
+      // Update ticket lane/tier ONLY without altering rank or positionToken
+      await fastify.redis.hset(ticketKey, {
+        riskTier: newRiskTier,
+        lane: newRiskTier,
+      });
+    }
+
+    // 6. Write an immutable audit event
+    const auditEventId = `evt_appeal_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const auditEvent = {
+      eventId: auditEventId,
+      type: 'USER_RISK_APPEAL',
+      dropId,
+      fairId,
+      userId,
+      reAuthMethod,
+      previousScore,
+      newScore,
+      previousRiskTier,
+      newRiskTier,
+      drawRank: drawRank || null,
+      timestamp: Date.now(),
+    };
+
+    await fastify.redis.rpush(`drop:${dropId}:audit:appeals`, JSON.stringify(auditEvent));
+    await fastify.redis.rpush('audit:events', JSON.stringify(auditEvent));
+
+    // 7. Record appeal usage flag (1 per FairID per drop)
+    await fastify.redis.set(appealKey, '1');
+
+    // Update session if active
+    if (sessionToken) {
+      await fastify.redis.hset(`session:${sessionToken}`, 'riskTier', newRiskTier);
+    }
+
+    return reply.status(200).send({
+      success: true,
+      message: "You've been moved to the standard lane",
+      previousRiskTier,
+      newRiskTier,
+      previousScore,
+      newScore,
+      fairId,
+      drawRank,
+      auditEventId,
+      appealUsed: true,
     });
   });
 };

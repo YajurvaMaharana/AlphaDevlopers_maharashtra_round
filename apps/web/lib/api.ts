@@ -5,6 +5,8 @@ import {
   VerifyOtpResponse,
   GoogleAuthRequest,
   GoogleAuthResponse,
+  AuthAppealRequest,
+  AuthAppealResponse,
   UserStateResponse,
   CreatePoWChallengeRequest,
   PoWChallenge,
@@ -171,6 +173,21 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
       success: true,
       solutionToken: `sol_tok_${Date.now()}_verified`,
       verified: true
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/auth/appeal')) {
+    return {
+      success: true,
+      message: "You've been moved to the standard lane",
+      previousRiskTier: 'high',
+      newRiskTier: 'low',
+      previousScore: 75,
+      newScore: 30,
+      fairId: bodyObj.fairId || 'fair_id_demo_fan',
+      drawRank: 42,
+      auditEventId: `evt_appeal_${Date.now()}_demo`,
+      appealUsed: true
     } as unknown as T;
   }
 
@@ -403,6 +420,13 @@ export const api = {
     solvePoW: (body: SolvePoWRequest): Promise<SolvePoWResponse> =>
       request<SolvePoWResponse>('/pow/solve', {
         method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    appeal: (body: AuthAppealRequest, token?: string): Promise<AuthAppealResponse> =>
+      request<AuthAppealResponse>('/auth/appeal', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: JSON.stringify(body),
       }),
   },

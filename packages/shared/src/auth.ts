@@ -204,6 +204,35 @@ export const UserStateResponseSchema = z.object({
 export type UserStateResponse = z.infer<typeof UserStateResponseSchema>;
 
 // ==========================================
+// POST /auth/appeal
+// ==========================================
+export const AuthAppealRequestSchema = z.object({
+  fairId: z.string().optional(),
+  userId: z.string().optional(),
+  dropId: z.string().default('fairdrop-main-2026'),
+  reAuthMethod: z.enum(['otp', 'google']).default('otp'),
+  email: z.string().email().optional(),
+  otpCode: z.string().min(4).max(8).optional(),
+  idToken: z.string().optional(),
+  deviceFp: z.string().optional()
+});
+export type AuthAppealRequest = z.infer<typeof AuthAppealRequestSchema>;
+
+export const AuthAppealResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  previousRiskTier: z.enum(['low', 'medium', 'high']),
+  newRiskTier: z.enum(['low', 'medium', 'high']),
+  previousScore: z.number().optional(),
+  newScore: z.number().optional(),
+  fairId: z.string(),
+  drawRank: z.number().int().positive().optional(),
+  auditEventId: z.string(),
+  appealUsed: z.boolean()
+});
+export type AuthAppealResponse = z.infer<typeof AuthAppealResponseSchema>;
+
+// ==========================================
 // POST /pow/challenge
 // ==========================================
 export const CreatePoWChallengeRequestSchema = z.object({
