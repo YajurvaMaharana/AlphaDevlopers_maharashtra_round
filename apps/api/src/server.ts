@@ -3,10 +3,12 @@ import redisPlugin from './plugins/redisClient';
 import tarpitPlugin from './plugins/tarpit';
 import metricsHook from './plugins/metricsHook';
 import gracefulShutdown from './plugins/gracefulShutdown';
+import clusterDetectorPlugin from './plugins/clusterDetectorJob';
 import authRoutes from './routes/auth';
 import dropRoutes from './routes/drop';
 import powRoutes from './routes/pow';
 import adminRiskRoute from './routes/adminRisk';
+import adminClustersRoute from './routes/adminClusters';
 import botlabRoutes from './routes/botlab';
 import chaosRoutes from './routes/chaos';
 import metricsStreamRoutes from './routes/metricsStream';
@@ -33,12 +35,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(metricsHook);
   await fastify.register(tarpitPlugin);
   await fastify.register(gracefulShutdown);
+  await fastify.register(clusterDetectorPlugin);
 
   // Register routes
   await fastify.register(authRoutes);
   await fastify.register(dropRoutes);
   await fastify.register(powRoutes);
   await fastify.register(adminRiskRoute);
+  await fastify.register(adminClustersRoute);
   await fastify.register(botlabRoutes);
   await fastify.register(chaosRoutes);
   await fastify.register(metricsStreamRoutes);

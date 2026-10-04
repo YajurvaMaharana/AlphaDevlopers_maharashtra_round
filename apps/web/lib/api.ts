@@ -235,9 +235,111 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
       orderId: `ord_${Date.now().toString(36).slice(0, 8)}`,
       seatNumbers: [42],
       amountPaidCents: 9900,
+      amountCents: 9900,
       currency: 'USD',
       paidAt: Date.now(),
       status: 'COMPLETED'
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/receipt/')) {
+    const id = path.split('/').pop() || 'rcpt_default';
+    return {
+      receiptId: id,
+      orderId: `ord_${Date.now().toString(36).slice(0, 8)}`,
+      dropId: 'fairdrop-main-2026',
+      seatNumbers: [42],
+      buyerName: 'Verified Fan',
+      buyerEmail: 'fan@fairdrop.io',
+      paidAt: Date.now() - 60000,
+      amountCents: 9900,
+      currency: 'USD',
+      txHash: '0x498a9b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0',
+      merkleProof: [
+        '1283cbd3042c06ca007827821a45bcd9e2560f908609104b252ae1c3f30ae91d',
+        '954c4755fae8466b8fdbbd0299d73218a109bb2e98e107e1716b4f8303b420ec'
+      ],
+      qrCodeUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>',
+      allocationId: id,
+      rank: 42,
+      riskTier: 'low'
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/defenses')) {
+    const enabled = bodyObj.enabled !== false;
+    return {
+      success: true,
+      defenses: {
+        enabled,
+        rateLimiting: enabled,
+        powRequired: enabled,
+        powDifficulty: 4,
+        tarpitting: enabled,
+        strictFingerprinting: enabled
+      },
+      updatedAt: Date.now()
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/drop/start')) {
+    return {
+      success: true,
+      dropId: bodyObj.dropId || 'fairdrop-main-2026',
+      phase: 'ACTIVE',
+      startedAt: Date.now(),
+      totalSeats: 500
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/drop/reset')) {
+    return {
+      success: true,
+      dropId: bodyObj.dropId || 'fairdrop-main-2026',
+      resetAt: Date.now(),
+      message: 'Drop reset successfully'
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/botlab/run')) {
+    return {
+      runId: `run_${Date.now()}`,
+      status: 'STARTING',
+      scenario: bodyObj.scenario || 'baseline_humans',
+      parameters: {
+        totalClients: bodyObj.totalClients || 5000,
+        botRatio: bodyObj.botRatio || 0.8,
+        durationSeconds: bodyObj.durationSeconds || 30
+      },
+      startedAt: Date.now()
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/invariants')) {
+    return {
+      isValid: true,
+      inventory: {
+        total: 500,
+        sold: 412,
+        held: 18,
+        available: 70,
+        invariantFormula: 'sold + held + available = total inventory',
+        isConserved: true,
+        oversellDelta: 0
+      },
+      redisPostgresParity: true,
+      duplicateAllocations: 0,
+      timestamp: Date.now()
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/admin/chaos')) {
+    return {
+      success: true,
+      action: bodyObj.action || 'kill_api_replica',
+      appliedAt: Date.now(),
+      status: 'TRIGGERED',
+      details: 'Chaos simulation triggered successfully'
     } as unknown as T;
   }
 

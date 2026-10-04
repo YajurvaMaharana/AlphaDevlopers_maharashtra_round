@@ -11,6 +11,7 @@ import { verifyGoogleIdToken, createSessionJwt } from '../services/googleAuth';
 import { upsertGoogleUser, upsertOtpUser, computeFairId } from '../db/postgres';
 import { updateRiskScore, getRiskTier } from '../services/riskIntegration';
 import { extractClientIp, lookupIpNetwork, checkTimezoneMismatch } from '../services/networkSignals';
+import { recordIdentityCluster } from '../services/clusterDetector';
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
@@ -59,6 +60,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         email: googleUser.email,
         deviceFp,
         riskTier: riskResult.tier,
+      });
+
+      // Track identity in cluster detector
+      await recordIdentityCluster(fastify.redis, {
+        userId: user.id,
+        ip: clientIp,
+        subnet24: netInfo.subnet24,
+        asnType: netInfo.asnType,
+        deviceFp,
+        userAgent: request.headers['user-agent'],
+        timestamp: Date.now(),
       });
 
       // 7. Issue unified session JWT containing authMethod: 'google'
@@ -191,6 +203,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       email,
       deviceFp: clientFingerprint,
       riskTier: riskResult.tier,
+    });
+
+    // Track identity in cluster detector
+    await recordIdentityCluster(fastify.redis, {
+      userId: user.id,
+      ip: clientIp,
+      subnet24: netInfo.subnet24,
+      asnType: netInfo.asnType,
+      deviceFp: clientFingerprint,
+      userAgent: request.headers['user-agent'],
+      timestamp: Date.now(),
     });
 
     // Issue unified JWT token with authMethod: 'otp'
