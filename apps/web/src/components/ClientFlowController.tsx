@@ -64,6 +64,49 @@ export function ClientFlowController() {
   const [isAppealing, setIsAppealing] = useState(false);
   const [appealSuccess, setAppealSuccess] = useState(false);
 
+  const [isStepUpModalOpen, setIsStepUpModalOpen] = useState(false);
+  const [stepUpOtp, setStepUpOtp] = useState('');
+  const [stepUpError, setStepUpError] = useState<string | null>(null);
+  const [stepUpAttempts, setStepUpAttempts] = useState(0);
+  const [stepUpSuccess, setStepUpSuccess] = useState(false);
+  const [isVerifyingStepUp, setIsVerifyingStepUp] = useState(false);
+
+  const handleStepUpVerify = async () => {
+    if (stepUpAttempts >= 3) {
+      setStepUpError('Max 3 attempts reached. Please request a new OTP.');
+      return;
+    }
+    setIsVerifyingStepUp(true);
+    setStepUpError(null);
+    try {
+      const token = localStorage.getItem('fairdrop_auth_token') || undefined;
+      await api.auth.stepupVerify(stepUpOtp || '123456', token);
+      setStepUpSuccess(true);
+      // Emit event to dashboard
+      const channel = new BroadcastChannel('fairdrop_tab_sync_v1');
+      channel.postMessage({
+        type: 'DASHBOARD_EVENT',
+        event: {
+          type: 'APPEAL_GRANTED',
+          message: 'Step-up verification passed',
+          ipMasked: `192.0.2.${Math.floor(10 + Math.random() * 200)}`,
+          asnType: 'VPN',
+          severity: 'good'
+        }
+      });
+      channel.close();
+
+      setTimeout(() => {
+        bootstrap();
+      }, 1000);
+    } catch (e: any) {
+      setStepUpAttempts((prev) => prev + 1);
+      setStepUpError(e?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsVerifyingStepUp(false);
+    }
+  };
+
   // SSE Stream hook
   const sse = useSSEStream({
     autoConnect: state.step === 'waiting' || state.step === 'joined',
@@ -122,11 +165,12 @@ export function ClientFlowController() {
     try {
       const token = localStorage.getItem('fairdrop_auth_token') || undefined;
       const res = await api.auth.appeal({
-        fairId: state.fairId || 'fair_id_test',
+        dropId: 'fairdrop-main-2026',
+        fairId: localStorage.getItem('fairdrop_fair_id') || 'fair_id_test',
         email: state.email || 'bot-datacenter@test.com',
-        authMethod: 'otp',
-        otp: appealOtp,
-        clientFingerprint: 'test-fp'
+        reAuthMethod: 'otp',
+        otpCode: appealOtp,
+        deviceFp: 'test-fp'
       }, token);
 
       setAppealSuccess(true);
@@ -160,6 +204,89 @@ export function ClientFlowController() {
 
   return (
     <div className="space-y-6">
+      {/* High Risk Blocked Card */}
+      {(state.gate === 'blocked' || state.tier === 'high') && !appealSuccess && (
+        <div className="glass-panel p-8 rounded-3xl border border-red-500/50 bg-red-950/20 space-y-6 text-center max-w-2xl mx-auto shadow-2xl shadow-red-500/20">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto border border-red-500/30">
+            <ShieldAlert className="w-8 h-8 animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-widest">
+              RISK_BLOCKED (403)
+            </span>
+            <h2 className="text-2xl font-black text-white tracking-tight">Access Blocked by Risk Gate</h2>
+            <p className="text-sm text-slate-300 max-w-md mx-auto">
+              This is an automated safety decision, not a ban.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-black/40 border border-red-500/20 text-left space-y-2">
+            <div className="text-xs font-mono uppercase tracking-wider text-red-300">Detected Risk Signals:</div>
+            <ul className="list-disc list-inside text-xs text-slate-300 space-y-1 font-mono">
+              <li>datacenter network</li>
+              <li>many registrations from the same subnet</li>
+            </ul>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => setIsAppealModalOpen(true)}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-xl shadow-red-600/30 transition-all cursor-pointer"
+            >
+              Appeal: verify with email code
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Medium Risk Stepup Required Modal */}
+      {(state.gate === 'stepup_required' || isStepUpModalOpen) && !stepUpSuccess && (
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-8 rounded-3xl border border-blue-500/40 bg-slate-900/95 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Extra verification required</h3>
+                <p className="text-xs text-slate-400">Medium risk tier step-up challenge</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Please enter the 6-digit OTP sent to your verified device or email to pass the security checkpoint. (Demo Code: <strong className="text-emerald-400 font-mono">123456</strong>)
+            </p>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                maxLength={6}
+                value={stepUpOtp}
+                onChange={(e) => setStepUpOtp(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                className="w-full px-4 py-3.5 rounded-xl bg-black/60 border border-white/20 text-white text-center font-mono text-2xl tracking-widest focus:border-blue-500 outline-none"
+              />
+              {stepUpError && (
+                <div className="text-xs text-red-400 font-mono bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                  {stepUpError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleStepUpVerify}
+                disabled={isVerifyingStepUp || stepUpAttempts >= 3}
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold tracking-wider uppercase transition-all shadow-lg shadow-blue-600/30 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isVerifyingStepUp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                <span>Verify Step-Up OTP</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Offline & Reconnecting Glassmorphism Banner */}
       <NetworkBanner
         network={network}
@@ -322,7 +449,7 @@ export function ClientFlowController() {
           {/* STATE: WAITING OR JOINED */}
           {(state.step === 'waiting' || state.step === 'joined') && (
             <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-5 relative overflow-hidden">
-              {(state.tier === 'HIGH_RISK' || state.tier === 'high') && !appealSuccess && (
+              {(String(state.tier) === 'HIGH_RISK' || state.tier === 'high') && !appealSuccess && (
                 <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <ShieldAlert className="w-5 h-5 text-red-400 shrink-0" />

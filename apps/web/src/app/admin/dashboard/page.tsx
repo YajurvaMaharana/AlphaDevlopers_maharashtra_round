@@ -62,7 +62,7 @@ interface DecileDataPoint {
 interface SecurityEvent {
   id: string;
   timestamp: string;
-  type: 'IP_PENALTY' | 'TARPIT' | 'POW_ESCALATION' | 'SYBIL_BLOCKED' | 'SEAT_ALLOCATED' | 'REPLAY_BURNED';
+  type: 'IP_PENALTY' | 'TARPIT' | 'POW_ESCALATION' | 'SYBIL_BLOCKED' | 'SEAT_ALLOCATED' | 'REPLAY_BURNED' | 'APPEAL_GRANTED';
   message: string;
   ipMasked?: string;
   asnType?: 'residential' | 'datacenter' | 'vpn_proxy' | 'unknown' | 'DATACENTER' | 'VPN' | 'RESIDENTIAL' | string;
@@ -600,6 +600,21 @@ function AdminDashboardContent() {
                 ipMasked: `104.14.${Math.floor(10 + Math.random() * 200)}.xx`,
                 asnType: 'RESIDENTIAL',
                 severity: 'good',
+              },
+              {
+                type: 'IP_PENALTY',
+                message: 'High-risk identity blocked',
+                ipMasked: `198.51.100.${Math.floor(10 + Math.random() * 200)}`,
+                asnType: 'DATACENTER',
+                reasons: ['datacenter network', 'many registrations from the same subnet'],
+                severity: 'high',
+              },
+              {
+                type: 'APPEAL_GRANTED',
+                message: 'Step-up verification passed',
+                ipMasked: `192.0.2.${Math.floor(10 + Math.random() * 200)}`,
+                asnType: 'VPN',
+                severity: 'good',
               }
             ];
 
@@ -740,7 +755,7 @@ function AdminDashboardContent() {
       </header>
 
       {/* 2. Top KPI Tiles with Smooth Number Tweening */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
         {/* Tile 1: Seats Sold */}
         <div className="glass-panel p-4 rounded-2xl border border-white/10 space-y-1 relative overflow-hidden">
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -809,7 +824,7 @@ function AdminDashboardContent() {
             />
           </div>
           <div className="text-[10px] text-slate-400 font-mono">
-            {metrics.giniCoefficient <= 0.15 ? 'Uniform Fair Allocation' : 'High Inequality (Bots)'}
+            {metrics.giniCoefficient <= 0.15 ? 'Uniform Fair' : 'High Inequality'}
           </div>
         </div>
 
@@ -842,6 +857,34 @@ function AdminDashboardContent() {
           </div>
           <div className="text-[10px] text-slate-400 font-mono">
             PoW Blocked: <strong>{metrics.powBlockedCount.toLocaleString()}</strong>
+          </div>
+        </div>
+
+        {/* Tile 7: Blocked High-Risk Attempts */}
+        <div className="glass-panel p-4 rounded-2xl border border-red-500/30 bg-red-950/10 space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-red-300 uppercase tracking-wider">
+            <span>Blocked High-Risk</span>
+            <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+          </div>
+          <div className="text-2xl font-black text-red-400 font-mono">
+            <AnimatedNumber value={1930} />
+          </div>
+          <div className="text-[10px] text-red-300/80 font-mono">
+            Gate: RISK_BLOCKED (403)
+          </div>
+        </div>
+
+        {/* Tile 8: Step-ups Passed */}
+        <div className="glass-panel p-4 rounded-2xl border border-blue-500/30 bg-blue-950/10 space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-blue-300 uppercase tracking-wider">
+            <span>Step-ups Passed</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <div className="text-2xl font-black text-blue-400 font-mono">
+            <AnimatedNumber value={420} />
+          </div>
+          <div className="text-[10px] text-blue-300/80 font-mono">
+            OTP Verified &amp; Admitted
           </div>
         </div>
       </section>

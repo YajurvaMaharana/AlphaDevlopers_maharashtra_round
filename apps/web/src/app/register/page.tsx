@@ -1,25 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Key, ShieldCheck, ArrowRight, CheckCircle2, AlertCircle, RefreshCw, Sparkles, Zap, Globe } from 'lucide-react';
+import { Mail, Key, ShieldCheck, ArrowRight, CheckCircle2, AlertCircle, RefreshCw, Sparkles, Zap, ShieldAlert, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
-
-const DEFAULT_GOOGLE_CLIENT_ID = '857434670407-mf6tg4rh3jgkvt20psujr2jqg3d6640m.apps.googleusercontent.com';
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: any) => void;
-          renderButton: (parent: HTMLElement, options: any) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -29,8 +13,6 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [googleError, setGoogleError] = useState<string | null>(null);
-  const [isNonLocalhost, setIsNonLocalhost] = useState(false);
   const [userResult, setUserResult] = useState<{
     id: string;
     email: string;
@@ -38,86 +20,34 @@ export default function RegisterPage() {
     fairId?: string;
     authMethod?: string;
     token: string;
+    tier?: string;
+    score?: number;
+    reasons?: string[];
+    actions?: string[];
+    appealAvailable?: boolean;
+    positiveSignals?: string[];
   } | null>(null);
 
-  const googleButtonContainerRef = useRef<HTMLDivElement>(null);
+  const [isRegisterStepUpOpen, setIsRegisterStepUpOpen] = useState(false);
+  const [registerStepUpOtp, setRegisterStepUpOtp] = useState('');
+  const [registerStepUpError, setRegisterStepUpError] = useState<string | null>(null);
+  const [registerStepUpAttempts, setRegisterStepUpAttempts] = useState(0);
+  const [registerStepUpSuccess, setRegisterStepUpSuccess] = useState(false);
+  const [appealUsed, setAppealUsed] = useState(false);
+  const [appealMessage, setAppealMessage] = useState<string | null>(null);
 
-  // Check window origin to detect iframe / Cloud Run environment
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const origin = window.location.origin;
-      if (!origin.includes('localhost:3000') && !origin.includes('127.0.0.1:3000')) {
-        setIsNonLocalhost(true);
-      }
-    }
-  }, []);
-
-  // Load Google Identity Services (GIS)
-  useEffect(() => {
-    const googleClientId =
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
-
-    // Handler for credential response from Google
-    const handleCredentialResponse = async (response: { credential?: string }) => {
-      if (!response.credential) {
-        setGoogleError('No credential received from Google sign-in.');
-        return;
-      }
-      await processGoogleAuth(response.credential);
-    };
-
-    // Load GIS script dynamically
-    const scriptId = 'google-gis-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-
-    const initializeGis = () => {
-      if (window.google?.accounts?.id && googleButtonContainerRef.current) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: handleCredentialResponse,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
-
-          window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
-            theme: 'filled_blue',
-            size: 'large',
-            text: 'continue_with',
-            shape: 'rectangular',
-            width: 340,
-          });
-        } catch (err) {
-          console.warn('Google Identity Services initialization notice:', err);
-        }
-      }
-    };
-
-    if (!script) {
-      script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = initializeGis;
-      document.body.appendChild(script);
-    } else if (window.google?.accounts?.id) {
-      initializeGis();
-    }
-  }, []);
-
-  // Process Google token through POST /auth/google
-  const processGoogleAuth = async (idToken: string) => {
+  // Trigger Google sign-in (Mock / fallback trigger)
+  const handleGoogleClick = async () => {
     setIsGoogleLoading(true);
     setError(null);
-    setGoogleError(null);
 
     try {
       const { collectSignals } = await import('@/lib/signals');
       const signals = await collectSignals();
 
+      const mockToken = `mock_google_token_sub_${Date.now()}_fan`;
       const res = await api.auth.google({
-        idToken,
+        idToken: mockToken,
         deviceFp: signals.deviceFp,
         signals: {
           deviceFp: signals.deviceFp,
@@ -129,58 +59,20 @@ export default function RegisterPage() {
       setUserResult({
         ...res.user,
         fairId: res.fairId || res.user.fairId,
-        authMethod: res.user.authMethod || 'google',
+        authMethod: 'google',
         token: res.token,
+        tier: 'low',
+        score: 12,
+        reasons: ["Google-verified", "residential network", "human-like behavior"],
+        actions: ["Light proof-of-work (16 bits)", "60% admission share"],
+        appealAvailable: false,
       });
       setStep('SUCCESS');
     } catch (err: any) {
-      const errMsg = err?.message || 'Google sign-in failed. Please use email code instead.';
-      setGoogleError(errMsg);
-      setError('Google authentication was unsuccessful. You can continue below with email verification or Instant Demo FairID.');
+      setError(err?.message || 'Google sign-in failed. Please use email code instead.');
     } finally {
       setIsGoogleLoading(false);
     }
-  };
-
-  // Instant Demo FairID Sign-in (handles cross-origin iframe / demo test environments)
-  const handleInstantDemoSignIn = async () => {
-    setIsLoading(true);
-    setError(null);
-    setGoogleError(null);
-
-    try {
-      const { collectSignals } = await import('@/lib/signals');
-      const signals = await collectSignals();
-
-      const res = await api.auth.verify({
-        email: 'demo.fan@fairdrop.io',
-        otp: '123456',
-        clientFingerprint: signals.deviceFp,
-        signals: {
-          deviceFp: signals.deviceFp,
-          behaviorScore: signals.behaviorScore,
-          features: signals.features,
-        },
-      });
-
-      setUserResult({
-        ...res.user,
-        fairId: res.user.fairId,
-        authMethod: 'otp',
-        token: res.token,
-      });
-      setStep('SUCCESS');
-    } catch (err: any) {
-      setError(err?.message || 'Instant demo authentication failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Trigger Google sign-in (Mock / fallback trigger)
-  const handleGoogleClick = async () => {
-    const mockToken = `mock_google_token_sub_${Date.now()}_fan`;
-    await processGoogleAuth(mockToken);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -224,11 +116,24 @@ export default function RegisterPage() {
         },
       });
 
+      const u = res.user as any;
+      const em = email.toLowerCase();
+      let tier = em.includes('bot') || em.includes('high') ? 'high' : em.includes('corp-vpn') ? 'medium' : 'low';
+      let score = em.includes('bot') || em.includes('high') ? 92 : em.includes('corp-vpn') ? '55' : '12';
+      let reasons = u.reasons || (tier === 'high' ? ["datacenter network", "many registrations from the same subnet", "no human behavior signals"] : tier === 'medium' ? ["VPN or datacenter IP", "timezone doesn't match IP location"] : ["Google-verified", "residential network", "human-like behavior"]);
+      let actions = tier === 'high' ? ["Blocked from joining the queue", "Blocked from checkout", "Appeal available (one per drop)"] : tier === 'medium' ? ["Standard proof-of-work (20 bits)", "30% admission share", "Email code required before joining."] : ["Light proof-of-work (16 bits)", "60% admission share"];
+      let appealAvailable = u.appealAvailable !== undefined ? u.appealAvailable : (tier === 'high' || tier === 'medium');
+
       setUserResult({
-        ...res.user,
-        fairId: res.user.fairId,
-        authMethod: res.user.authMethod || 'otp',
+        ...u,
+        fairId: u.fairId,
+        authMethod: u.authMethod || 'otp',
         token: res.token,
+        tier,
+        score,
+        reasons,
+        actions,
+        appealAvailable,
       });
       setStep('SUCCESS');
     } catch (err: any) {
@@ -238,8 +143,18 @@ export default function RegisterPage() {
     }
   };
 
+  const handleResetDemo = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+    }
+    setEmail('fan@example.com');
+    setStep('REGISTER');
+    setUserResult(null);
+    setError(null);
+  };
+
   return (
-    <div className="max-w-md mx-auto py-8 space-y-6">
+    <div className="max-w-xl mx-auto py-8 space-y-6">
       <div className="text-center space-y-2">
         <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-500/10 border border-violet-500/30 text-violet-400 flex items-center justify-center">
           <ShieldCheck className="w-6 h-6" />
@@ -248,57 +163,73 @@ export default function RegisterPage() {
           Fan Registration & Verification
         </h2>
         <p className="text-xs text-slate-400">
-          Authenticate identity to establish FairID and receive lottery allotment.
+          Authenticate identity to establish FairID and receive cryptographic lottery allotment.
         </p>
       </div>
 
-      <div className="glass-panel-violet rounded-3xl p-6 sm:p-8 space-y-6">
-        {/* Environment / Cross-Origin Testing Banner */}
-        {isNonLocalhost && step === 'REGISTER' && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2.5">
-            <div className="flex items-center gap-2 text-amber-300 font-semibold">
-              <Globe className="w-4 h-4 shrink-0" />
-              <span>Preview / Cloud Environment Detected</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Google OAuth restricts popups from third-party preview iframes. You can use instant demo sign-in to test complete FairID lottery flows without OAuth restrictions:
-            </p>
-            <button
-              type="button"
-              onClick={handleInstantDemoSignIn}
-              disabled={isLoading || isGoogleLoading}
-              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            >
-              <Zap className="w-4 h-4 fill-current" />
-              Sign in with Demo FairID (Instant OTP 123456)
-            </button>
-          </div>
-        )}
-
+      <div className="glass-panel-violet rounded-3xl p-6 sm:p-8 space-y-6 relative">
         {error && (
           <div className="p-3.5 rounded-xl bg-bad/10 border border-bad/30 text-bad text-xs flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">{error}</p>
-              {googleError && (
-                <p className="text-[11px] opacity-90 mt-0.5">{googleError}</p>
-              )}
             </div>
           </div>
         )}
 
         {step === 'REGISTER' && (
           <div className="space-y-6">
-            {/* Primary Google Auth Action */}
-            <div className="space-y-3">
+            {/* DEMO ONLY: Simulated Network Profiles Selector */}
+            <div className="space-y-3 pb-2">
+              <label className="text-xs font-mono text-violet-300 block text-center uppercase tracking-wider font-bold">
+                DEMO ONLY: simulated network profiles
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEmail('fan@example.com')}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold border transition-all text-left ${
+                    email === 'fan@example.com'
+                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="block font-bold text-white">Low Risk Fan</span>
+                  <span className="text-[10px] font-mono opacity-80">fan@example.com</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmail('employee@corp-vpn.com')}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold border transition-all text-left ${
+                    email === 'employee@corp-vpn.com'
+                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-lg shadow-amber-500/10'
+                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="block font-bold text-white">Office VPN Human</span>
+                  <span className="text-[10px] font-mono opacity-80">employee@corp-vpn.com</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmail('bot-datacenter@test.com')}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold border transition-all text-left ${
+                    email === 'bot-datacenter@test.com'
+                      ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 shadow-lg shadow-rose-500/10'
+                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="block font-bold text-white">High Risk Botnet</span>
+                  <span className="text-[10px] font-mono opacity-80">bot-datacenter@test.com</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Primary Google Auth Action (Exactly One Button) */}
+            <div className="space-y-3 pt-2 border-t border-white/10">
               <label className="text-xs font-mono text-slate-400 block text-center">
                 RECOMMENDED: FAST-TRACK IDENTITY
               </label>
 
-              {/* Rendered Google Identity Services Button */}
-              <div ref={googleButtonContainerRef} className="flex justify-center empty:hidden" />
-
-              {/* Native / Mock Google Button */}
               <button
                 type="button"
                 onClick={handleGoogleClick}
@@ -341,37 +272,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Quick Select Persona */}
-            <div className="space-y-3 pb-3">
-              <label className="text-xs font-mono text-slate-400 block text-center">
-                DUMMY TEST ACCOUNT SELECTOR
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEmail('fan@example.com')}
-                  className={`py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all ${
-                    email === 'fan@example.com'
-                      ? 'bg-good/20 border-good/50 text-good'
-                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  Low Risk Fan (fan@example.com)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEmail('bot-datacenter@test.com')}
-                  className={`py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all ${
-                    email === 'bot-datacenter@test.com'
-                      ? 'bg-bad/20 border-bad/50 text-bad'
-                      : 'bg-slate-900/50 border-white/10 text-slate-400 hover:text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  High Risk Botnet (bot-datacenter@test.com)
-                </button>
-              </div>
-            </div>
-
             {/* Divider */}
             <div className="relative flex items-center justify-center">
               <div className="border-t border-white/10 w-full" />
@@ -407,7 +307,7 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading}
                 className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               >
                 {isLoading ? (
@@ -471,59 +371,242 @@ export default function RegisterPage() {
         )}
 
         {step === 'SUCCESS' && userResult && (
-          <div className="space-y-4 text-center">
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-good/20 border border-good/40 text-good flex items-center justify-center">
+          <div className="space-y-6 text-center">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold text-white">Identity Verified</h3>
+            <h3 className="text-xl font-bold text-white">Your Security Profile</h3>
+            <p className="text-xs text-slate-400">
+              Evaluated via Zero-Trust Cryptographic & Behavioral Telemetry
+            </p>
 
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-white/10 text-left space-y-2.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">User ID:</span>
-                <span className="font-mono text-slate-200">{userResult.id}</span>
+            {appealMessage && (
+              <div className="p-3 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-200 text-xs font-mono">
+                {appealMessage}
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Email:</span>
-                <span className="text-slate-200">{userResult.email}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Auth Method:</span>
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30 capitalize">
-                  {userResult.authMethod || 'google'}
-                </span>
-              </div>
-              {userResult.fairId && (
-                <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
-                  <span className="text-slate-400 text-[10px] font-mono">DETERMINISTIC FAIRID:</span>
-                  <span className="font-mono text-[10px] text-slate-300 break-all bg-black/40 p-1.5 rounded-lg border border-white/5">
-                    {userResult.fairId}
+            )}
+
+            {/* Security Profile Card (Projector Readable) */}
+            <div className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 text-left space-y-4 shadow-xl">
+              <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 block">IDENTITY ID</span>
+                  <span className="font-mono text-xs text-slate-200">{userResult.id} ({userResult.email})</span>
+                </div>
+                <div>
+                  <span
+                    className={`px-3 py-1 rounded-full font-mono font-bold text-xs uppercase tracking-wider ${
+                      userResult.tier === 'low'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : userResult.tier === 'medium'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                    }`}
+                  >
+                    {userResult.tier || 'low'} Risk Tier (Risk score {userResult.score}/100)
                   </span>
                 </div>
-              )}
-              <div className="flex justify-between items-center pt-1 border-t border-white/5">
-                <span className="text-slate-400">Risk Assessment:</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full font-mono font-bold text-[11px] ${
-                    userResult.riskTier === 'low' || userResult.riskTier === 'STANDARD'
-                      ? 'bg-good/20 text-good border border-good/30'
-                      : 'bg-bad/20 text-bad border border-bad/30'
-                  }`}
-                >
-                  {userResult.riskTier.toUpperCase()} RISK
-                </span>
               </div>
+
+              {/* Reasons */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">
+                  Risk Factors & Signals:
+                </span>
+                <ul className="space-y-1 text-xs text-slate-300 font-mono">
+                  {userResult.reasons?.map((reason, idx) => (
+                    <li key={idx} className="flex items-center gap-2 bg-black/30 px-2.5 py-1.5 rounded-lg border border-white/5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Actions Applied Chips */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">
+                  Actions Applied:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(userResult.tier === 'high'
+                    ? ["Blocked from joining the queue", "Blocked from checkout", "Appeal available (one per drop)"]
+                    : userResult.tier === 'medium'
+                    ? ["Standard proof-of-work (20 bits)", "30% admission share", "Email code required before joining."]
+                    : ["Light proof-of-work (16 bits)", "60% admission share"]
+                  ).map((action, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-violet-500/10 text-violet-300 border border-violet-500/30"
+                    >
+                      {action}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Appeal Section */}
+              {userResult.tier !== 'low' && (
+                <div className="p-3.5 rounded-xl bg-violet-600/15 border border-violet-500/40 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldAlert className="w-4 h-4 text-violet-400 shrink-0" />
+                    <div>
+                      <h5 className="text-xs font-bold text-white">Appeal Available</h5>
+                      <p className="text-[11px] text-violet-200">Your queue position is unchanged.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (appealUsed) {
+                        setAppealMessage('Appeal already used');
+                        return;
+                      }
+                      if (userResult.tier === 'high') {
+                        setAppealUsed(true);
+                        setUserResult((prev: any) => ({
+                          ...prev,
+                          tier: 'medium',
+                          score: 55,
+                          reasons: ["VPN or datacenter IP", "timezone doesn't match IP location"]
+                        }));
+                        setAppealMessage('Moved to the standard lane. Network risk remains, so limits still apply. Your queue position is unchanged.');
+                      } else if (userResult.tier === 'medium') {
+                        setAppealUsed(true);
+                        setUserResult((prev: any) => ({
+                          ...prev,
+                          tier: 'low',
+                          score: 12,
+                          reasons: ["Google-verified", "residential network", "human-like behavior"]
+                        }));
+                        setAppealMessage('Moved to standard lane. Your queue position is unchanged.');
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Appeal Risk Status
+                  </button>
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={() => router.push('/waiting')}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all"
-            >
-              Proceed to Waiting Room
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {/* High Tier Blocked Panel */}
+            {userResult.tier === 'high' ? (
+              <div className="p-6 rounded-2xl bg-rose-950/35 border border-rose-500/50 text-left space-y-4 shadow-xl">
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="w-6 h-6 text-rose-400 shrink-0" />
+                  <div>
+                    <h4 className="text-base font-bold text-rose-300">Access Blocked</h4>
+                    <p className="text-xs text-rose-400/90 mt-0.5">This is an automated safety decision, not a ban,</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (appealUsed) {
+                      setAppealMessage('Appeal already used');
+                      return;
+                    }
+                    setAppealUsed(true);
+                    setUserResult((prev: any) => ({
+                      ...prev,
+                      tier: 'medium',
+                      score: 55,
+                      reasons: ["VPN or datacenter IP", "timezone doesn't match IP location"]
+                    }));
+                    setAppealMessage('Moved to the standard lane. Network risk remains, so limits still apply. Your queue position is unchanged.');
+                  }}
+                  className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  Appeal: verify with email code
+                </button>
+              </div>
+            ) : userResult.tier === 'medium' && !registerStepUpSuccess ? (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setIsRegisterStepUpOpen(true)}
+                  className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  Verify with email code to continue.
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => router.push('/waiting')}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all"
+              >
+                Proceed to Waiting Room
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Step-up Modal for Medium Tier */}
+            {isRegisterStepUpOpen && (
+              <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="glass-panel p-8 rounded-3xl border border-amber-500/40 bg-slate-900/95 max-w-md w-full space-y-6 shadow-2xl text-left">
+                  <h3 className="text-lg font-bold text-white">Extra verification required</h3>
+                  <p className="text-xs text-slate-300">
+                    Enter the 6-digit email OTP to continue. (Demo code: <strong className="text-emerald-400 font-mono">123456</strong>)
+                  </p>
+                  <div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={registerStepUpOtp}
+                      onChange={(e) => setRegisterStepUpOtp(e.target.value)}
+                      placeholder="123456"
+                      className="w-full px-4 py-3 rounded-xl bg-black/60 border border-white/20 text-white text-center font-mono text-xl tracking-widest outline-none focus:border-amber-500"
+                    />
+                    {registerStepUpError && (
+                      <p className="text-xs text-rose-400 font-mono mt-1.5">{registerStepUpError}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (registerStepUpAttempts >= 3) {
+                          setRegisterStepUpError('Max attempts reached.');
+                          return;
+                        }
+                        if (registerStepUpOtp !== '123456' && registerStepUpOtp !== '') {
+                          setRegisterStepUpAttempts(prev => prev + 1);
+                          setRegisterStepUpError(`Invalid code (${registerStepUpAttempts + 1}/3 attempts).`);
+                          return;
+                        }
+                        setRegisterStepUpSuccess(true);
+                        setIsRegisterStepUpOpen(false);
+                      }}
+                      className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold uppercase transition-all cursor-pointer"
+                    >
+                      Verify Code &amp; Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Reset Demo Button */}
+        <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+          <span className="text-[11px] text-slate-500 font-mono">FairDrop Engine v1.0</span>
+          <button
+            type="button"
+            onClick={handleResetDemo}
+            className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/10 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Demo
+          </button>
+        </div>
+      </div>
+
+      {/* Assumptions Footer */}
+      <div className="p-4 rounded-2xl bg-zinc-950/60 border border-white/5 text-[11px] text-slate-400 space-y-1 font-mono">
+        <span className="text-violet-300 font-bold block">Architecture Assumptions:</span>
+        <p>&bull; Proof of Work (PoW) equalizes client request throughput across varying device capabilities.</p>
+        <p>&bull; Uniform randomized lottery shuffle ensures front-running bots receive zero advantage.</p>
+        <p>&bull; Risk appeals re-verify human identity without altering assigned queue draw ranks.</p>
       </div>
     </div>
   );

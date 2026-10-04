@@ -48,8 +48,20 @@ const mockDb = {
   heldSeats: 28,
   dropPhase: 'WAITING_ROOM' as 'UPCOMING' | 'WAITING_ROOM' | 'SHUFFLE' | 'ACTIVE' | 'SOLD_OUT',
   users: new Map<string, { email: string; token: string }>(),
-  receipts: new Map<string, ReceiptResponse>()
+  receipts: new Map<string, ReceiptResponse>(),
+  stepupVerified: new Set<string>()
 };
+
+function checkRiskGate(request: Request): 'open' | 'blocked' | 'stepup_required' {
+  if (!mockDb.defensesEnabled) return 'open';
+  const authHeader = request.headers.get('Authorization') || '';
+  if (authHeader.includes('highrisk')) return 'blocked';
+  if (authHeader.includes('mediumrisk')) {
+    const verified = mockDb.stepupVerified?.has(authHeader);
+    return verified ? 'open' : 'stepup_required';
+  }
+  return 'open';
+}
 
 export const handlers = [
   // 0. POST /auth/google and /api/auth/google
@@ -170,7 +182,7 @@ export const handlers = [
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const isHighRisk = email.includes('bot') || email.includes('high');
-    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const riskTier = isHighRisk ? 'high' : 'low';
     const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
@@ -192,7 +204,7 @@ export const handlers = [
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const isHighRisk = email.includes('bot') || email.includes('high');
-    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const riskTier = isHighRisk ? 'high' : 'low';
     const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
@@ -214,7 +226,7 @@ export const handlers = [
     const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const isHighRisk = email.includes('bot') || email.includes('high');
-    const riskTier = isHighRisk ? 'HIGH_RISK' : 'low';
+    const riskTier = isHighRisk ? 'high' : 'low';
     const token = `jwt_mock_${Date.now()}_${isHighRisk ? 'highrisk' : 'lowrisk'}_${Math.random().toString(36).slice(2, 8)}`;
     const fairId = `fair_id_otp_${Date.now()}`;
 
@@ -237,16 +249,20 @@ export const handlers = [
   http.get('*/me/state', async ({ request }) => {
     const authHeader = request.headers.get('Authorization') || '';
     const isHighRisk = authHeader.includes('highrisk');
+    const isMediumRisk = authHeader.includes('mediumrisk');
+    const riskTier = isHighRisk ? 'high' : (isMediumRisk ? 'medium' : 'low');
+    const gate = checkRiskGate(request);
 
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
-      email: isHighRisk ? 'bot-datacenter@test.com' : 'fan@example.com',
+      email: isHighRisk ? 'bot-datacenter@test.com' : (isMediumRisk ? 'employee@corp-vpn.com' : 'fan@example.com'),
       status: mockDb.dropPhase === 'WAITING_ROOM' ? 'WAITING_ROOM' : 'QUEUED',
       queuePosition: 84,
       estimatedWaitSeconds: 45,
       reservation: null,
       receiptId: null,
-      riskTier: isHighRisk ? 'HIGH_RISK' : 'low',
+      riskTier: riskTier as any,
+      gate: gate as any,
       powRequired: mockDb.powRequired,
       powDifficulty: mockDb.powDifficulty
     };
@@ -255,20 +271,50 @@ export const handlers = [
   http.get('/me/state', async ({ request }) => {
     const authHeader = request.headers.get('Authorization') || '';
     const isHighRisk = authHeader.includes('highrisk');
+    const isMediumRisk = authHeader.includes('mediumrisk');
+    const riskTier = isHighRisk ? 'high' : (isMediumRisk ? 'medium' : 'low');
+    const gate = checkRiskGate(request);
 
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
-      email: isHighRisk ? 'bot-datacenter@test.com' : 'fan@example.com',
+      email: isHighRisk ? 'bot-datacenter@test.com' : (isMediumRisk ? 'employee@corp-vpn.com' : 'fan@example.com'),
       status: mockDb.dropPhase === 'WAITING_ROOM' ? 'WAITING_ROOM' : 'QUEUED',
       queuePosition: 84,
       estimatedWaitSeconds: 45,
       reservation: null,
       receiptId: null,
-      riskTier: isHighRisk ? 'HIGH_RISK' : 'low',
+      riskTier: riskTier as any,
+      gate: gate as any,
       powRequired: mockDb.powRequired,
       powDifficulty: mockDb.powDifficulty
     };
     return HttpResponse.json(response, { status: 200 });
+  }),
+
+  // Step-up authentication handlers
+  http.post('*/auth/stepup/start', async () => {
+    return HttpResponse.json({ success: true, otp: '123456', message: 'Step-up OTP sent successfully' }, { status: 200 });
+  }),
+  http.post('/auth/stepup/start', async () => {
+    return HttpResponse.json({ success: true, otp: '123456', message: 'Step-up OTP sent successfully' }, { status: 200 });
+  }),
+  http.post('*/auth/stepup/verify', async ({ request }) => {
+    const body = await safeJson<{ otp?: string }>(request);
+    if (!body.otp || body.otp.length !== 6) {
+      return HttpResponse.json({ code: 'BAD_REQUEST', message: 'OTP must be 6 digits' }, { status: 400 });
+    }
+    const token = request.headers.get('Authorization') || 'default';
+    mockDb.stepupVerified.add(token);
+    return HttpResponse.json({ success: true, message: 'Step-up verification passed' }, { status: 200 });
+  }),
+  http.post('/auth/stepup/verify', async ({ request }) => {
+    const body = await safeJson<{ otp?: string }>(request);
+    if (!body.otp || body.otp.length !== 6) {
+      return HttpResponse.json({ code: 'BAD_REQUEST', message: 'OTP must be 6 digits' }, { status: 400 });
+    }
+    const token = request.headers.get('Authorization') || 'default';
+    mockDb.stepupVerified.add(token);
+    return HttpResponse.json({ success: true, message: 'Step-up verification passed' }, { status: 200 });
   }),
 
   // 4. POST /pow/challenge
@@ -315,6 +361,23 @@ export const handlers = [
 
   // 6. POST /drop/join
   http.post('*/drop/join', async ({ request }) => {
+    const gate = checkRiskGate(request);
+    if (gate === 'blocked') {
+      return HttpResponse.json({
+        code: 'RISK_BLOCKED',
+        message: 'High-risk identity blocked by risk gate',
+        reasons: ['datacenter network', 'many registrations from the same subnet'],
+        appealAvailable: true
+      }, { status: 403 });
+    }
+    if (gate === 'stepup_required') {
+      return HttpResponse.json({
+        code: 'STEPUP_REQUIRED',
+        message: 'Step-up verification required for medium tier',
+        method: 'otp'
+      }, { status: 403 });
+    }
+
     const body = await safeJson<{ dropId?: string }>(request);
     const response: DropJoinResponse = {
       success: true,
@@ -328,6 +391,23 @@ export const handlers = [
     return HttpResponse.json(response, { status: 200 });
   }),
   http.post('/drop/join', async ({ request }) => {
+    const gate = checkRiskGate(request);
+    if (gate === 'blocked') {
+      return HttpResponse.json({
+        code: 'RISK_BLOCKED',
+        message: 'High-risk identity blocked by risk gate',
+        reasons: ['datacenter network', 'many registrations from the same subnet'],
+        appealAvailable: true
+      }, { status: 403 });
+    }
+    if (gate === 'stepup_required') {
+      return HttpResponse.json({
+        code: 'STEPUP_REQUIRED',
+        message: 'Step-up verification required for medium tier',
+        method: 'otp'
+      }, { status: 403 });
+    }
+
     const body = await safeJson<{ dropId?: string }>(request);
     const response: DropJoinResponse = {
       success: true,
@@ -420,7 +500,54 @@ export const handlers = [
   }),
 
   // 10. POST /checkout/reserve
+  http.post('*/checkout/reserve', async ({ request }) => {
+    const gate = checkRiskGate(request);
+    if (gate === 'blocked') {
+      return HttpResponse.json({
+        code: 'RISK_BLOCKED',
+        message: 'High-risk identity blocked by risk gate',
+        reasons: ['datacenter network', 'many registrations from the same subnet'],
+        appealAvailable: true
+      }, { status: 403 });
+    }
+    if (gate === 'stepup_required') {
+      return HttpResponse.json({
+        code: 'STEPUP_REQUIRED',
+        message: 'Step-up verification required for medium tier',
+        method: 'otp'
+      }, { status: 403 });
+    }
+
+    const body = await safeJson<{ dropId?: string }>(request);
+    const response: CheckoutReserveResponse = {
+      reservationId: `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      dropId: body.dropId || 'fairdrop-main-2026',
+      seatNumbers: [42],
+      heldUntil: Date.now() + 120000,
+      ttlSeconds: 120,
+      priceCents: 9900,
+      currency: 'USD'
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/checkout/reserve', async ({ request }) => {
+    const gate = checkRiskGate(request);
+    if (gate === 'blocked') {
+      return HttpResponse.json({
+        code: 'RISK_BLOCKED',
+        message: 'High-risk identity blocked by risk gate',
+        reasons: ['datacenter network', 'many registrations from the same subnet'],
+        appealAvailable: true
+      }, { status: 403 });
+    }
+    if (gate === 'stepup_required') {
+      return HttpResponse.json({
+        code: 'STEPUP_REQUIRED',
+        message: 'Step-up verification required for medium tier',
+        method: 'otp'
+      }, { status: 403 });
+    }
+
     const body = await safeJson<{ dropId?: string }>(request);
     const response: CheckoutReserveResponse = {
       reservationId: `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -435,6 +562,64 @@ export const handlers = [
   }),
 
   // 11. POST /checkout/pay
+  http.post('*/checkout/pay', async ({ request }) => {
+    const gate = checkRiskGate(request);
+    if (gate === 'blocked') {
+      return HttpResponse.json({
+        code: 'RISK_BLOCKED',
+        message: 'High-risk identity blocked by risk gate',
+        reasons: ['datacenter network', 'many registrations from the same subnet'],
+        appealAvailable: true
+      }, { status: 403 });
+    }
+    if (gate === 'stepup_required') {
+      return HttpResponse.json({
+        code: 'STEPUP_REQUIRED',
+        message: 'Step-up verification required for medium tier',
+        method: 'otp'
+      }, { status: 403 });
+    }
+
+    const body = await safeJson<{
+      reservationId?: string;
+      attendee?: { name: string; email: string };
+    }>(request);
+
+    const receiptId = `rcpt_${Date.now()}_99a`;
+    const response: CheckoutPayResponse = {
+      success: true,
+      receiptId,
+      orderId: `ord_${Date.now().toString(36).slice(0, 8)}`,
+      seatNumbers: [42],
+      amountPaidCents: 9900,
+      currency: 'USD',
+      paidAt: Date.now(),
+      status: 'COMPLETED'
+    };
+
+    mockDb.receipts.set(receiptId, {
+      receiptId,
+      orderId: response.orderId,
+      dropId: 'fairdrop-main-2026',
+      allocationId: `alloc_fd_${receiptId.slice(-8)}`,
+      queueBatch: 'Batch #1 (Window A)',
+      rank: 40,
+      riskTier: 'Tier 1 (Low Risk - Human 99.4%)',
+      seatNumbers: [40],
+      buyerName: body.attendee?.name || 'Alex Rivers',
+      buyerEmail: body.attendee?.email || 'alex.rivers@example.com',
+      paidAt: Date.now(),
+      amountCents: 9900,
+      currency: 'USD',
+      txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
+      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+      revealedSeed: 'fairdrop_seed_valid_99',
+      merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
+      qrCodeUrl: `/verify?receipt=${receiptId}`
+    });
+
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/checkout/pay', async ({ request }) => {
     const body = await safeJson<{
       reservationId?: string;

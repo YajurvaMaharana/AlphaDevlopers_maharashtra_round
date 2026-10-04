@@ -70,6 +70,7 @@ export function useClientMachine(): UseClientMachineReturn {
           hold: holdPayload,
           allocation: serverState.allocation ?? 1,
           tier: serverState.tier || serverState.riskTier || 'low',
+          gate: serverState.gate || 'open',
           receiptId: serverState.receiptId,
         },
       });

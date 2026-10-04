@@ -11,6 +11,7 @@ export interface ClientContext {
   hold: HoldState | null;
   allocation: number | null;
   tier: 'low' | 'medium' | 'high';
+  gate?: 'open' | 'blocked' | 'stepup_required';
   idempotencyKey: string | null;
   receiptId: string | null;
   error: { code: string; message: string } | null;
@@ -32,6 +33,7 @@ export type ClientEvent =
         hold?: HoldState | null;
         allocation?: number | null;
         tier?: 'low' | 'medium' | 'high';
+        gate?: 'open' | 'blocked' | 'stepup_required';
         receiptId?: string | null;
       };
     }
@@ -165,6 +167,7 @@ export function clientMachineReducer(
         hold: p.hold !== undefined ? p.hold : state.hold,
         allocation: p.allocation !== undefined ? p.allocation : state.allocation,
         tier: p.tier || state.tier,
+        gate: p.gate !== undefined ? p.gate : state.gate,
         receiptId: p.receiptId !== undefined ? p.receiptId : state.receiptId,
         isSyncing: false,
         lastSyncedAt: Date.now(),

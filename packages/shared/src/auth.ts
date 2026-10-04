@@ -185,6 +185,7 @@ export const UserStateResponseSchema = z.object({
   hold: HoldStateSchema.nullable().optional(),
   allocation: z.number().int().nullable().optional(),
   tier: z.enum(['low', 'medium', 'high']).optional(),
+  gate: z.enum(['open', 'blocked', 'stepup_required']).optional(),
 
   // Extended / existing fields
   userId: z.string().optional(),

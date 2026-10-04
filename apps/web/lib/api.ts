@@ -201,6 +201,21 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
     } as unknown as T;
   }
 
+  if (normalizedPath.includes('/auth/stepup/start')) {
+    return {
+      success: true,
+      otp: '123456',
+      message: 'Step-up OTP sent successfully'
+    } as unknown as T;
+  }
+
+  if (normalizedPath.includes('/auth/stepup/verify')) {
+    return {
+      success: true,
+      message: 'Step-up verification passed'
+    } as unknown as T;
+  }
+
   if (normalizedPath.includes('/auth/appeal')) {
     return {
       success: true,
@@ -453,6 +468,20 @@ export const api = {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: JSON.stringify(body),
+      }),
+
+    stepupStart: (token?: string): Promise<{ success: boolean; otp: string; message: string }> =>
+      request('/auth/stepup/start', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: JSON.stringify({}),
+      }),
+
+    stepupVerify: (otp: string, token?: string): Promise<{ success: boolean; message: string }> =>
+      request('/auth/stepup/verify', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: JSON.stringify({ otp }),
       }),
   },
 
