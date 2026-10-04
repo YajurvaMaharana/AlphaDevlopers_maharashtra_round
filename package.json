@@ -16,15 +16,21 @@
     "build:shared": "npm --workspace=@fairdrop/shared run build",
     "test:shared": "npm --workspace=@fairdrop/shared run test",
     "lint": "npm --workspace=@fairdrop/web run lint",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "eslint": "^10.12.0",
     "eslint-config-next": "^16.3.8",
     "typescript": "^5.4.5",
     "vitest": "^5.0.3"
   },
   "dependencies": {
+    "fastify": "^5.12.5",
+    "fastify-plugin": "^6.0.0",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
+    "pg": "^8.23.1",
     "undici": "^8.11.2"
   }
 }

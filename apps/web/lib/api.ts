@@ -3,6 +3,8 @@ import {
   RegisterResponse,
   VerifyOtpRequest,
   VerifyOtpResponse,
+  GoogleAuthRequest,
+  GoogleAuthResponse,
   UserStateResponse,
   CreatePoWChallengeRequest,
   PoWChallenge,
@@ -88,6 +90,30 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
     }
   } catch {
     // ignore
+  }
+
+  if (normalizedPath.includes('/auth/google')) {
+    const idToken = bodyObj.idToken || 'mock_google_token_12345';
+    let googleSub = 'google_sub_1092837465';
+    let email = 'google.fan@example.com';
+    if (typeof idToken === 'string' && idToken.startsWith('mock_google_token_')) {
+      const parts = idToken.split('_');
+      googleSub = parts[3] || googleSub;
+      if (parts[4]) email = `${parts[4]}@gmail.com`;
+    }
+    const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
+    return {
+      success: true,
+      token: `jwt_google_mock_${Date.now()}`,
+      user: {
+        id: `usr_g_${googleSub.slice(0, 12)}`,
+        email,
+        fairId,
+        riskTier: 'low',
+        authMethod: 'google'
+      },
+      fairId
+    } as unknown as T;
   }
 
   if (normalizedPath.includes('/auth/register')) {
@@ -222,6 +248,12 @@ export const api = {
   baseUrl: BASE_URL,
 
   auth: {
+    google: (body: GoogleAuthRequest): Promise<GoogleAuthResponse> =>
+      request<GoogleAuthResponse>('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
     register: (body: RegisterRequest): Promise<RegisterResponse> =>
       request<RegisterResponse>('/auth/register', {
         method: 'POST',

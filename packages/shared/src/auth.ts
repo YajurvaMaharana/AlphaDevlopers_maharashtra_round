@@ -21,9 +21,16 @@ export const ErrorCodeEnum = z.enum([
   'IDEMPOTENCY_CONFLICT',
   'PAYMENT_FAILED',
   'INVARIANT_VIOLATION',
+  'GOOGLE_AUTH_FAILED',
+  'GOOGLE_JWKS_UNREACHABLE',
+  'EMAIL_NOT_VERIFIED',
+  'INVALID_TOKEN',
   'INTERNAL_ERROR'
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
+
+export const AuthMethodEnum = z.enum(['google', 'otp']);
+export type AuthMethod = z.infer<typeof AuthMethodEnum>;
 
 export const AppErrorSchema = z.object({
   code: ErrorCodeEnum,
@@ -96,10 +103,36 @@ export const VerifyOtpResponseSchema = z.object({
   user: z.object({
     id: z.string(),
     email: z.string(),
-    riskTier: z.enum(['low', 'medium', 'high'])
+    fairId: z.string().optional(),
+    riskTier: z.enum(['low', 'medium', 'high']),
+    authMethod: AuthMethodEnum.optional().default('otp')
   })
 });
 export type VerifyOtpResponse = z.infer<typeof VerifyOtpResponseSchema>;
+
+// ==========================================
+// POST /auth/google
+// ==========================================
+export const GoogleAuthRequestSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+  deviceFp: z.string().min(1, 'Device fingerprint is required'),
+  signals: z.record(z.any()).optional()
+});
+export type GoogleAuthRequest = z.infer<typeof GoogleAuthRequestSchema>;
+
+export const GoogleAuthResponseSchema = z.object({
+  success: z.boolean(),
+  token: z.string(),
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    fairId: z.string(),
+    riskTier: z.enum(['low', 'medium', 'high']),
+    authMethod: z.literal('google')
+  }),
+  fairId: z.string().optional()
+});
+export type GoogleAuthResponse = z.infer<typeof GoogleAuthResponseSchema>;
 
 // ==========================================
 // GET /me/state

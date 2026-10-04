@@ -10,6 +10,7 @@ export interface RiskSignals {
   behaviorScore: number; // 0 (bot-like) to 1 (human-like)
   powSolveTimeMs: number; 
   penaltyCount: number;
+  authMethod?: 'google' | 'otp';
 }
 
 export interface RiskResult {
@@ -20,7 +21,7 @@ export interface RiskResult {
 
 // Configurable weights and thresholds for calculating risk (0 = safe, 100+ = risky)
 // We cap the total score at 100.
-const RISK_CONFIG = {
+export const RISK_CONFIG = {
   requestsPerMin: { base: 10, weight: 0.5, max: 25 }, // e.g. 60 req/min -> 25 points
   burstiness: { threshold: 0.2, points: 15 }, // Very regular timing (low CV) = bot
   uaAnomaly: { points: 15 },
@@ -32,6 +33,10 @@ const RISK_CONFIG = {
   behaviorScore: { threshold: 0.3, points: 20 }, // Low behavior score = bot
   powSolveTimeMs: { threshold: 100, points: 15 }, // Super fast PoW = bot
   penaltyCount: { weight: 20, max: 40 }, // High penalty = bot
+  authMethod: {
+    googleDiscountPoints: 10,
+    otpBaselinePoints: 0,
+  },
 };
 
 export function evaluateRisk(signals: RiskSignals): RiskResult {
@@ -108,18 +113,27 @@ export function evaluateRisk(signals: RiskSignals): RiskResult {
     contributions.push({ reason: 'Prior abuse penalties', points });
   }
 
-  // Sum points and cap at 100
+  // 12. authMethod baseline risk adjustment
+  if (signals.authMethod === 'google') {
+    const discount = RISK_CONFIG.authMethod.googleDiscountPoints;
+    if (discount > 0) {
+      contributions.push({ reason: 'Google verified identity bonus', points: -discount });
+    }
+  }
+
+  // Sum points and clamp between 0 and 100
   let totalScore = contributions.reduce((sum, c) => sum + c.points, 0);
-  totalScore = Math.min(100, Math.round(totalScore));
+  totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
 
   // Determine tier
   let tier: 'low' | 'medium' | 'high' = 'low';
   if (totalScore >= 70) tier = 'high';
   else if (totalScore >= 30) tier = 'medium';
 
-  // Get top 3 reasons
-  contributions.sort((a, b) => b.points - a.points);
-  const reasons = contributions.slice(0, 3).map((c) => c.reason);
+  // Get top 3 reasons from positive risk contributions
+  const positiveContributions = contributions.filter((c) => c.points > 0);
+  positiveContributions.sort((a, b) => b.points - a.points);
+  const reasons = positiveContributions.slice(0, 3).map((c) => c.reason);
   
   // Pad reasons to always have length 3 if we need exact string[3] format? 
   // Requirements: "reasons: string[3] where reasons name the top 3 contributing signals"

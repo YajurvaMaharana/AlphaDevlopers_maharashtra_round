@@ -52,6 +52,50 @@ const mockDb = {
 };
 
 export const handlers = [
+  // 0. POST /auth/google and /api/auth/google
+  http.post('*/auth/google', async ({ request }) => {
+    const body = await safeJson<{ idToken?: string; deviceFp?: string }>(request);
+    const googleSub = 'google_sub_1092837465';
+    const email = 'google.fan@example.com';
+    const deviceFp = body.deviceFp || 'fp_mock_browser_001';
+    const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
+    const token = `jwt_google_mock_${Date.now()}`;
+
+    return HttpResponse.json({
+      success: true,
+      token,
+      user: {
+        id: `usr_g_${googleSub.slice(0, 12)}`,
+        email,
+        fairId,
+        riskTier: 'low',
+        authMethod: 'google',
+      },
+      fairId,
+    }, { status: 200 });
+  }),
+  http.post('/auth/google', async ({ request }) => {
+    const body = await safeJson<{ idToken?: string; deviceFp?: string }>(request);
+    const googleSub = 'google_sub_1092837465';
+    const email = 'google.fan@example.com';
+    const deviceFp = body.deviceFp || 'fp_mock_browser_001';
+    const fairId = `fair_id_g_${googleSub.slice(0, 16)}`;
+    const token = `jwt_google_mock_${Date.now()}`;
+
+    return HttpResponse.json({
+      success: true,
+      token,
+      user: {
+        id: `usr_g_${googleSub.slice(0, 12)}`,
+        email,
+        fairId,
+        riskTier: 'low',
+        authMethod: 'google',
+      },
+      fairId,
+    }, { status: 200 });
+  }),
+
   // 1. POST /auth/register and /api/auth/register
   http.post('*/auth/register', async ({ request }) => {
     const body = await safeJson<{ email?: string }>(request);
@@ -101,9 +145,10 @@ export const handlers = [
 
   // 2. POST /auth/verify
   http.post('*/auth/verify', async ({ request }) => {
-    const body = await safeJson<{ email?: string; otp?: string }>(request);
+    const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
       success: true,
@@ -111,16 +156,19 @@ export const handlers = [
       user: {
         id: `usr_${Date.now().toString(36)}`,
         email,
-        riskTier: 'low'
+        fairId,
+        riskTier: 'low',
+        authMethod: 'otp'
       }
     };
     mockDb.users.set(token, { email, token });
     return HttpResponse.json(response, { status: 200 });
   }),
   http.post('/auth/verify', async ({ request }) => {
-    const body = await safeJson<{ email?: string; otp?: string }>(request);
+    const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
       success: true,
@@ -128,16 +176,19 @@ export const handlers = [
       user: {
         id: `usr_${Date.now().toString(36)}`,
         email,
-        riskTier: 'low'
+        fairId,
+        riskTier: 'low',
+        authMethod: 'otp'
       }
     };
     mockDb.users.set(token, { email, token });
     return HttpResponse.json(response, { status: 200 });
   }),
   http.post('/api/auth/verify', async ({ request }) => {
-    const body = await safeJson<{ email?: string; otp?: string }>(request);
+    const body = await safeJson<{ email?: string; otp?: string; clientFingerprint?: string }>(request);
     const email = body.email || 'fan@example.com';
     const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const fairId = `fair_id_otp_${Date.now()}`;
 
     const response: VerifyOtpResponse = {
       success: true,
@@ -145,7 +196,9 @@ export const handlers = [
       user: {
         id: `usr_${Date.now().toString(36)}`,
         email,
-        riskTier: 'low'
+        fairId,
+        riskTier: 'low',
+        authMethod: 'otp'
       }
     };
     mockDb.users.set(token, { email, token });

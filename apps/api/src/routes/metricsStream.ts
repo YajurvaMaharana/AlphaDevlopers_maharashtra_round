@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { calculateGini, calculateSpearman } from '@fairdrop/shared/math';
+import { calculateGini, calculateSpearman } from '@fairdrop/shared';
 
 export const metricsStreamRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/metrics/stream', (request, reply) => {
@@ -133,3 +133,6 @@ async function calculateLiveMetrics(fastify: any) {
     }
   };
 }
+
+export default metricsStreamRoutes;
+
