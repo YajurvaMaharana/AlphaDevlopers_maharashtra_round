@@ -444,7 +444,16 @@ export const handlers = [
       commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
       revealedSeed: 'fairdrop_seed_valid_99',
       merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
-      qrCodeUrl: `/verify?receipt=${id}`
+      qrCodeUrl: `/verify?receipt=${id}`,
+      explanation: 'Verified with Google, low-risk lane, randomized batch #42, zero step-up challenges required',
+      fairHash: 'a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8',
+      authMethod: 'google',
+      riskLane: 'low-risk lane',
+      lane: 'low',
+      batchId: 'batch_42',
+      batchNumber: 42,
+      stepUpRequired: false,
+      emailHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
     };
 
     return HttpResponse.json(response, { status: 200 });

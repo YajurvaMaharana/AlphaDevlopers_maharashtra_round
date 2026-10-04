@@ -84,8 +84,8 @@ export const ReceiptResponseSchema = z.object({
   orderId: z.string(),
   dropId: z.string(),
   seatNumbers: z.array(z.number().int().positive()),
-  buyerName: z.string(),
-  buyerEmail: z.string(),
+  buyerName: z.string().optional(),
+  buyerEmail: z.string().optional(),
   paidAt: z.number().int().positive(),
   amountCents: z.number().int().positive(),
   currency: z.string(),
@@ -98,6 +98,16 @@ export const ReceiptResponseSchema = z.object({
   riskTier: z.string().optional(),
   commitment: z.string().optional(),
   revealedSeed: z.string().optional(),
-  merkleRoot: z.string().optional()
+  merkleRoot: z.string().optional(),
+  explanation: z.string().optional(),
+  fairHash: z.string().optional(),
+  authMethod: z.string().optional(),
+  riskLane: z.string().optional(),
+  lane: z.string().optional(),
+  batchId: z.string().optional(),
+  batchNumber: z.number().int().optional(),
+  stepUpRequired: z.boolean().optional(),
+  emailHash: z.string().optional(),
+  fingerprintHash: z.string().optional()
 });
 export type ReceiptResponse = z.infer<typeof ReceiptResponseSchema>;

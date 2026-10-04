@@ -47,7 +47,7 @@ function VerifyContent() {
   const initialReceiptId =
     searchParams?.get('receipt') ||
     searchParams?.get('receiptId') ||
-    'rcpt_demo_001';
+    'rcpt_1791083002461_99a';
 
   const [receiptInput, setReceiptInput] = useState(initialReceiptId);
   const [receiptData, setReceiptData] = useState<any | null>(null);
@@ -89,7 +89,7 @@ function VerifyContent() {
           receiptId: targetId,
           orderId: `ord_${targetId.slice(-6)}`,
           dropId: 'fairdrop-main-2026',
-          seatNumbers: [40],
+          seatNumbers: [42],
           buyerName: 'Alex Rivers',
           buyerEmail: 'alex.rivers@example.com',
           paidAt: Date.now() - 3600000,
@@ -97,9 +97,18 @@ function VerifyContent() {
           currency: 'USD',
           txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
           allocationId: `alloc_fd_${targetId.slice(-8)}`,
-          queueBatch: 'Batch #1 (Window A)',
-          rank: 40,
-          riskTier: 'Tier 1: Minimal Risk (Human 99.4%)',
+          queueBatch: 'Batch #42 (Window A)',
+          rank: 42,
+          riskTier: 'low',
+          riskLane: 'low-risk lane',
+          lane: 'low',
+          authMethod: 'google',
+          batchId: 'batch_42',
+          batchNumber: 42,
+          stepUpRequired: false,
+          explanation: 'Verified with Google, low-risk lane, randomized batch #42, zero step-up challenges required',
+          fairHash: 'a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8',
+          emailHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
           commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
           revealedSeed: 'fairdrop_seed_valid_99',
           merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296'
@@ -285,6 +294,19 @@ function VerifyContent() {
         {/* Quick Demo Presets */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono text-zinc-400">
           <span className="text-zinc-500">Quick Test Cases:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setTamperSeed(false);
+              setTamperRank(false);
+              setTamperMerkle(false);
+              setReceiptInput('rcpt_1791083002461_99a');
+              loadAuditData('rcpt_1791083002461_99a');
+            }}
+            className="px-2.5 py-1 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 transition-colors font-bold"
+          >
+            Verified Receipt (rcpt_1791083002461_99a)
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -717,33 +739,67 @@ function VerifyContent() {
 
       {/* ALLOCATION RECORD SUMMARY */}
       {receiptData && (
-        <div className="p-5 rounded-2xl bg-zinc-950/80 border border-white/10 space-y-3">
-          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-            <span className="text-xs font-mono font-bold text-zinc-300 flex items-center gap-1.5 uppercase">
-              <Ticket className="w-3.5 h-3.5 text-emerald-400" />
+        <div className="p-6 rounded-2xl bg-zinc-950/80 border border-white/10 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <span className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-2 uppercase tracking-wider">
+              <Ticket className="w-4 h-4 text-emerald-400" />
               Verified Allocation Receipt Summary
             </span>
-            <span className="text-[11px] font-mono text-emerald-400">
+            <span className="text-xs font-mono font-bold text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
               Seat #{receiptData.seatNumbers?.[0] || 42} Allocated
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-            <div>
-              <span className="text-zinc-500 block text-[10px]">RECEIPT ID</span>
-              <span className="text-zinc-200">{receiptData.receiptId}</span>
+          {/* 1. Why you got this seat: Plain-English Justification */}
+          <div className="p-4 rounded-xl bg-violet-950/30 border border-violet-500/30 space-y-1.5">
+            <div className="flex items-center gap-2 text-violet-400 text-xs font-bold font-mono uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" />
+              <span>Why you got this seat (Plain-English Statutory Justification)</span>
             </div>
-            <div>
-              <span className="text-zinc-500 block text-[10px]">BUYER</span>
-              <span className="text-zinc-200">{receiptData.buyerName}</span>
+            <p className="text-sm font-medium text-violet-100 leading-relaxed font-sans">
+              &ldquo;{receiptData.explanation || 'Verified with Google, low-risk lane, randomized batch #42, zero step-up challenges required'}&rdquo;
+            </p>
+          </div>
+
+          {/* 2. FairHash Audit Token */}
+          <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-white/10 space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Hash className="w-3.5 h-3.5 text-emerald-400" />
+                FairHash Audit Token: sha256(allocationId + batchId + lane + commitment + timestamp)
+              </span>
+              <span className="text-[10px] text-zinc-500">Deterministic Allocation Proof</span>
             </div>
-            <div>
-              <span className="text-zinc-500 block text-[10px]">QUEUE BATCH</span>
-              <span className="text-zinc-200">{receiptData.queueBatch || 'Batch #1 (Window A)'}</span>
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-black/60 border border-white/5 font-mono text-xs text-emerald-300">
+              <span className="truncate">{receiptData.fairHash || 'a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8'}</span>
+              <button
+                type="button"
+                onClick={() => copyText(receiptData.fairHash || 'a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8', 'fairHash')}
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors shrink-0"
+                title="Copy FairHash"
+              >
+                {copiedKey === 'fairHash' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
             </div>
-            <div>
-              <span className="text-zinc-500 block text-[10px]">RISK TIER</span>
-              <span className="text-emerald-400">{receiptData.riskTier || 'Tier 1 (Human)'}</span>
+          </div>
+
+          {/* 3. Metadata Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-1">
+            <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/5">
+              <span className="text-zinc-500 block text-[10px] uppercase">RECEIPT ID</span>
+              <span className="text-zinc-200 truncate block font-bold">{receiptData.receiptId}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/5">
+              <span className="text-zinc-500 block text-[10px] uppercase">AUTH METHOD</span>
+              <span className="text-zinc-200 capitalize font-bold">{receiptData.authMethod || 'Google Auth'}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/5">
+              <span className="text-zinc-500 block text-[10px] uppercase">QUEUE BATCH</span>
+              <span className="text-zinc-200 font-bold">{receiptData.queueBatch || `Batch #${receiptData.batchNumber || 42}`}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/5">
+              <span className="text-zinc-500 block text-[10px] uppercase">RISK LANE</span>
+              <span className="text-emerald-400 font-bold">{receiptData.riskLane || `${receiptData.riskTier || 'low'}-risk lane`}</span>
             </div>
           </div>
         </div>

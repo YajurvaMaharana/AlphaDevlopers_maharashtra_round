@@ -170,12 +170,25 @@ export function ReceiptCard({ receipt, onSimulateAnother }: ReceiptCardProps) {
             </div>
           </div>
 
+          {/* Plain-English Audit Explanation Banner */}
+          {receipt.explanation && (
+            <div className="p-3.5 rounded-xl bg-violet-950/30 border border-violet-500/30 flex items-center gap-2.5 text-xs font-mono text-violet-200">
+              <Sparkles className="w-4 h-4 text-violet-400 shrink-0" />
+              <span>{receipt.explanation}</span>
+            </div>
+          )}
+
           {/* Attendee & Risk Tier Strip */}
           <div className="p-3.5 rounded-xl bg-zinc-950/70 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="space-y-0.5">
               <span className="text-[10px] font-mono text-zinc-500 uppercase block">ATTENDEE</span>
               <div className="text-zinc-200 font-semibold">
-                {receipt.buyerName} <span className="text-zinc-400 font-normal">({receipt.buyerEmail})</span>
+                {receipt.buyerName || 'Verified Fan'}{' '}
+                {receipt.emailHash ? (
+                  <span className="text-zinc-400 font-mono text-[10px]">(Hash: {truncateHash(receipt.emailHash, 6, 4)})</span>
+                ) : receipt.buyerEmail ? (
+                  <span className="text-zinc-400 font-normal">({receipt.buyerEmail})</span>
+                ) : null}
               </div>
             </div>
 
@@ -198,6 +211,27 @@ export function ReceiptCard({ receipt, onSimulateAnother }: ReceiptCardProps) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+              {/* FairHash */}
+              {receipt.fairHash && (
+                <div className="p-2.5 rounded-xl bg-violet-950/40 border border-violet-500/30 flex items-center justify-between gap-2 sm:col-span-2">
+                  <div className="truncate">
+                    <span className="text-[10px] text-violet-400 font-bold block">FAIRHASH (ALLOCATION + BATCH + LANE + COMMITMENT + TIME)</span>
+                    <span className="text-violet-200 text-[11px]">{truncateHash(receipt.fairHash, 14, 10)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(receipt.fairHash!, 'fairHash')}
+                    className="p-1.5 rounded-lg bg-violet-900/60 hover:bg-violet-800 text-violet-300 hover:text-white transition-colors"
+                    title="Copy FairHash"
+                  >
+                    {copiedKey === 'fairHash' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              )}
               {/* Transaction Hash */}
               <div className="p-2.5 rounded-xl bg-zinc-950/80 border border-white/5 flex items-center justify-between gap-2">
                 <div className="truncate">
