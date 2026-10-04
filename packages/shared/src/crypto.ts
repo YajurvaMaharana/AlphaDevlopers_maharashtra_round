@@ -1,6 +1,6 @@
 /**
  * FairDrop Shared Cryptographic & Lottery Engine
- * Ensures 100% mathematical parity between mock generators, backend, and client verifiers.
+ * 100% Deterministic, HMAC-SHA256 PRNG Fisher-Yates Shuffle, Merkle Tree with Odd Duplication.
  */
 
 export async function sha256(input: string): Promise<string> {
@@ -20,60 +20,48 @@ export async function sha256(input: string): Promise<string> {
   }
 }
 
-export function createMulberry32(seedInt: number): () => number {
-  let s = seedInt >>> 0;
-  return function () {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+export async function hmacSha256(keyStr: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : (globalThis as any).crypto;
+  if (cryptoObj && cryptoObj.subtle) {
+    const key = await cryptoObj.subtle.importKey(
+      'raw',
+      enc.encode(keyStr),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const sig = await cryptoObj.subtle.sign('HMAC', key, enc.encode(message));
+    const arr = Array.from(new Uint8Array(sig));
+    return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  try {
+    const nodeCrypto = eval("require('crypto')");
+    return nodeCrypto.createHmac('sha256', keyStr).update(message).digest('hex');
+  } catch (e) {
+    throw new Error('No HMAC-SHA256 implementation available.');
+  }
 }
 
-export async function computeDropDraw(
-  dropId: string,
-  participants: string[],
-  seed?: string
-): Promise<{
-  seed: string;
-  commitment: string;
-  shuffledParticipants: string[];
-  ranks: Map<string, number>;
-}> {
-  const cleanSeed = seed || `fairdrop_seed_${dropId}_2026_valid`;
-  const commitment = await sha256(cleanSeed);
-  const seedHash = await sha256(cleanSeed);
-  const seedInt = parseInt(seedHash.slice(0, 8), 16);
-  const prng = createMulberry32(seedInt);
-
-  const sorted = [...participants].sort();
-  const shuffled = [...sorted];
-
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(prng() * (i + 1));
-    const temp = shuffled[i];
-    shuffled[i] = shuffled[j];
-    shuffled[j] = temp;
+export async function deterministicShuffle(tickets: string[], seed: string): Promise<string[]> {
+  const sorted = [...tickets].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const arr = [...sorted];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const hmacHex = await hmacSha256(seed, String(i));
+    const intVal = parseInt(hmacHex.slice(0, 8), 16);
+    const j = intVal % (i + 1);
+    const temp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
   }
-
-  const ranks = new Map<string, number>();
-  shuffled.forEach((id, idx) => {
-    ranks.set(id, idx + 1);
-  });
-
-  return {
-    seed: cleanSeed,
-    commitment,
-    shuffledParticipants: shuffled,
-    ranks
-  };
+  return arr;
 }
 
 export async function computeAllocationLeaf(
   userId: string,
-  rank: number,
-  seatNumber: number
+  rank: number
 ): Promise<string> {
+  // Excludes volatile fields (timestamps, lane, tier, risk score)
   const leafPayload = `${rank}:${userId}`;
   return sha256(leafPayload);
 }
@@ -86,14 +74,13 @@ export interface MerkleTreeResult {
 
 export async function buildMerkleTree(
   participants: string[],
-  ranks: Map<string, number>,
-  seatNumberMap?: Map<string, number>
+  ranks: Map<string, number>
 ): Promise<MerkleTreeResult> {
+  const sortedParticipants = [...participants].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const leaves: string[] = [];
-  for (const userId of participants) {
+  for (const userId of sortedParticipants) {
     const rank = ranks.get(userId) || 1;
-    const seatNumber = seatNumberMap?.get(userId) || rank;
-    const leaf = await computeAllocationLeaf(userId, rank, seatNumber);
+    const leaf = await computeAllocationLeaf(userId, rank);
     leaves.push(leaf);
   }
 
@@ -104,6 +91,7 @@ export async function buildMerkleTree(
     const nextLayer: string[] = [];
     for (let i = 0; i < currentLayer.length; i += 2) {
       const left = currentLayer[i];
+      // Odd-sized level handling: duplicate the last node
       const right = i + 1 < currentLayer.length ? currentLayer[i + 1] : left;
       const pair = left <= right ? left + right : right + left;
       const parent = await sha256(pair);
@@ -116,8 +104,8 @@ export async function buildMerkleTree(
   const root = treeLayers[treeLayers.length - 1][0] || '';
 
   const proofs = new Map<string, string[]>();
-  for (let pIdx = 0; pIdx < participants.length; pIdx++) {
-    const userId = participants[pIdx];
+  for (let pIdx = 0; pIdx < sortedParticipants.length; pIdx++) {
+    const userId = sortedParticipants[pIdx];
     const proof: string[] = [];
     let idx = pIdx;
 
@@ -128,7 +116,7 @@ export async function buildMerkleTree(
       if (siblingIdx < layer.length) {
         proof.push(layer[siblingIdx]);
       } else {
-        proof.push(layer[idx]);
+        proof.push(layer[idx]); // duplicated odd sibling
       }
       idx = Math.floor(idx / 2);
     }
@@ -155,4 +143,71 @@ export async function verifyMerkleProof(
     current = await sha256(pair);
   }
   return current === expectedRoot.toLowerCase();
+}
+
+export interface DropSnapshotData {
+  dropId: string;
+  seed: string;
+  commitment: string;
+  tickets: string[];
+  shuffledTickets: string[];
+  ranks: Record<string, number>;
+  root: string;
+  leaves: string[];
+  proofs: Record<string, string[]>;
+}
+
+let cachedSnapshot: DropSnapshotData | null = null;
+
+export async function getOrCreateDropSnapshot(dropId = 'fairdrop-main-2026', forcedSeed?: string): Promise<DropSnapshotData> {
+  if (cachedSnapshot && !forcedSeed) {
+    return cachedSnapshot;
+  }
+
+  const seed = forcedSeed || `fairdrop_seed_${dropId}_2026_frozen_v1`;
+  const commitment = await sha256(seed);
+
+  const baseTickets: string[] = [];
+  for (let i = 1; i <= 500; i++) {
+    baseTickets.push(`usr_ticket_${i.toString().padStart(3, '0')}`);
+  }
+  baseTickets.push('usr_mock_001', 'usr_low_fan', 'usr_med_vpn', 'usr_high_bot', 'alex.rivers@example.com', 'fan@example.com');
+  const uniqueTickets = Array.from(new Set(baseTickets));
+
+  const shuffled = await deterministicShuffle(uniqueTickets, seed);
+  const ranksMap = new Map<string, number>();
+  shuffled.forEach((id, idx) => {
+    ranksMap.set(id, idx + 1);
+  });
+
+  const tree = await buildMerkleTree(shuffled, ranksMap);
+
+  const ranksRecord: Record<string, number> = {};
+  ranksMap.forEach((v, k) => {
+    ranksRecord[k] = v;
+  });
+
+  const proofsRecord: Record<string, string[]> = {};
+  tree.proofs.forEach((v, k) => {
+    proofsRecord[k] = v;
+  });
+
+  cachedSnapshot = {
+    dropId,
+    seed,
+    commitment,
+    tickets: uniqueTickets,
+    shuffledTickets: shuffled,
+    ranks: ranksRecord,
+    root: tree.root,
+    leaves: tree.leaves,
+    proofs: proofsRecord
+  };
+
+  return cachedSnapshot;
+}
+
+export function resetDropSnapshot(forcedSeed?: string): Promise<DropSnapshotData> {
+  cachedSnapshot = null;
+  return getOrCreateDropSnapshot('fairdrop-main-2026', forcedSeed);
 }

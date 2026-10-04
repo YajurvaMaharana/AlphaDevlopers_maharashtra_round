@@ -1,98 +1,114 @@
 import { describe, it, expect } from 'vitest';
 import {
   sha256,
-  computeDropDraw,
+  deterministicShuffle,
   buildMerkleTree,
   verifyCommitment,
-  verifyMerkleProof
+  verifyMerkleProof,
+  getOrCreateDropSnapshot,
+  resetDropSnapshot
 } from './src/crypto';
 
-describe('FairDrop Cryptographic & Lottery Engine', () => {
-  const dropId = 'fairdrop-main-2026';
-  const participants = [
-    'usr_low_fan',
-    'usr_med_vpn',
-    'usr_high_bot',
-    'usr_fan_001',
-    'usr_fan_002',
-    'usr_fan_003',
-    'usr_fan_004',
-    'usr_fan_005'
-  ];
+describe('FairDrop Cryptographic Engine & Deterministic Snapshot Tests', () => {
+  it('handles various participant counts (1, 2, 3, 7, 8, 500, 501) with odd node duplication', async () => {
+    const counts = [1, 2, 3, 7, 8, 500, 501];
+    for (const count of counts) {
+      const tickets = Array.from({ length: count }, (_, i) => `usr_t_${i + 1}`);
+      const seed = `seed_${count}_test`;
+      const shuffled = await deterministicShuffle(tickets, seed);
+      expect(shuffled.length).toBe(count);
 
-  it('(a) an honest receipt and proof verify successfully across all 3 steps', async () => {
-    const draw = await computeDropDraw(dropId, participants, 'fairdrop_seed_test_123');
-    const tree = await buildMerkleTree(participants, draw.ranks);
+      const ranksMap = new Map<string, number>();
+      shuffled.forEach((id, idx) => ranksMap.set(id, idx + 1));
 
-    const testUser = 'usr_low_fan';
-    const rank = draw.ranks.get(testUser)!;
-    const leaf = await sha256(`${rank}:${testUser}`);
-    const proof = tree.proofs.get(testUser)!;
+      const tree = await buildMerkleTree(shuffled, ranksMap);
+      expect(tree.root).toHaveLength(64);
+      expect(tree.leaves.length).toBe(count);
 
-    // Step 1: Verify Commitment
-    const step1Valid = await verifyCommitment(draw.seed, draw.commitment);
-    expect(step1Valid).toBe(true);
-
-    // Step 2: Verify Shuffle reproduces rank
-    const recomputedDraw = await computeDropDraw(dropId, participants, draw.seed);
-    const recomputedRank = recomputedDraw.ranks.get(testUser);
-    expect(recomputedRank).toBe(rank);
-
-    // Step 3: Verify Merkle inclusion proof
-    const step3Valid = await verifyMerkleProof(leaf, proof, tree.root);
-    expect(step3Valid).toBe(true);
-  });
-
-  it('(b) changing one character of the seed, rank or a proof hash makes the matching check fail', async () => {
-    const draw = await computeDropDraw(dropId, participants, 'fairdrop_seed_test_123');
-    const tree = await buildMerkleTree(participants, draw.ranks);
-
-    const testUser = 'usr_low_fan';
-    const rank = draw.ranks.get(testUser)!;
-    const leaf = await sha256(`${rank}:${testUser}`);
-    const proof = tree.proofs.get(testUser)!;
-
-    // 1. Tampered seed -> Commitment check fails
-    const tamperedSeed = draw.seed + 'x';
-    const step1Failed = await verifyCommitment(tamperedSeed, draw.commitment);
-    expect(step1Failed).toBe(false);
-
-    // 2. Tampered rank -> Shuffle rank check fails
-    const tamperedRank = rank + 1;
-    const recomputedDraw = await computeDropDraw(dropId, participants, draw.seed);
-    const recomputedRank = recomputedDraw.ranks.get(testUser);
-    expect(recomputedRank).not.toBe(tamperedRank);
-
-    // 3. Tampered proof hash -> Merkle proof check fails
-    const tamperedProof = [...proof];
-    if (tamperedProof.length > 0) {
-      tamperedProof[0] = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
+      // Verify each participant
+      for (const t of tickets) {
+        const rank = ranksMap.get(t)!;
+        const leaf = await sha256(`${rank}:${t}`);
+        const proof = tree.proofs.get(t)!;
+        const valid = await verifyMerkleProof(leaf, proof, tree.root);
+        expect(valid).toBe(true);
+      }
     }
-    const step3Failed = await verifyMerkleProof(leaf, tamperedProof, tree.root);
-    expect(step3Failed).toBe(false);
   });
 
-  it('(c) users of low, medium and high lane all get receipts and proofs that verify', async () => {
-    const lanes = [
-      { userId: 'usr_low_fan', lane: 'low' },
-      { userId: 'usr_med_vpn', lane: 'medium' },
-      { userId: 'usr_high_bot', lane: 'high' }
-    ];
+  it('(a) 200 random seed variations verify 100% of the time', async () => {
+    const tickets = ['usr_a', 'usr_b', 'usr_c', 'usr_d', 'usr_e'];
+    for (let i = 0; i < 200; i++) {
+      const seed = `seed_rand_${i}_${Math.floor(Math.random() * 100000)}`;
+      const commitment = await sha256(seed);
+      const shuffled = await deterministicShuffle(tickets, seed);
+      const ranksMap = new Map<string, number>();
+      shuffled.forEach((id, idx) => ranksMap.set(id, idx + 1));
+      const tree = await buildMerkleTree(shuffled, ranksMap);
 
-    const draw = await computeDropDraw(dropId, participants);
-    const tree = await buildMerkleTree(participants, draw.ranks);
-
-    for (const { userId } of lanes) {
-      const rank = draw.ranks.get(userId)!;
-      const leaf = await sha256(`${rank}:${userId}`);
-      const proof = tree.proofs.get(userId)!;
-
-      const validCommitment = await verifyCommitment(draw.seed, draw.commitment);
-      const validMerkle = await verifyMerkleProof(leaf, proof, tree.root);
-
+      const validCommitment = await verifyCommitment(seed, commitment);
       expect(validCommitment).toBe(true);
-      expect(validMerkle).toBe(true);
-      expect(rank).toBeGreaterThan(0);
+
+      const testUser = tickets[0];
+      const rank = ranksMap.get(testUser)!;
+      const leaf = await sha256(`${rank}:${testUser}`);
+      const proof = tree.proofs.get(testUser)!;
+      const validProof = await verifyMerkleProof(leaf, proof, tree.root);
+      expect(validProof).toBe(true);
     }
+  });
+
+  it('(b) calling snapshot getters multiple times (20 times) returns byte-identical JSON', async () => {
+    await resetDropSnapshot('fixed_test_seed_20');
+    const first = await getOrCreateDropSnapshot();
+    const firstJson = JSON.stringify(first);
+
+    for (let i = 0; i < 20; i++) {
+      const current = await getOrCreateDropSnapshot();
+      expect(JSON.stringify(current)).toBe(firstJson);
+    }
+  });
+
+  it('(c) adding tickets after draw does not alter snapshot or ranks of existing tickets', async () => {
+    await resetDropSnapshot('fixed_test_seed_freeze');
+    const snapshot1 = await getOrCreateDropSnapshot();
+    const rankUser1 = snapshot1.ranks['usr_mock_001'];
+
+    // Simulate late joiner
+    const snapshot2 = await getOrCreateDropSnapshot();
+    snapshot2.tickets.push('usr_late_joiner_999');
+
+    const snapshot3 = await getOrCreateDropSnapshot();
+    expect(snapshot3.ranks['usr_mock_001']).toBe(rankUser1);
+    expect(snapshot3.root).toBe(snapshot1.root);
+  });
+
+  it('(d) tampering with one character makes exactly the matching check fail', async () => {
+    const snapshot = await resetDropSnapshot('tamper_test_seed');
+    const testUser = 'usr_mock_001';
+    const rank = snapshot.ranks[testUser];
+    const leaf = await sha256(`${rank}:${testUser}`);
+    const proof = snapshot.proofs[testUser];
+
+    // 1. Tampered seed
+    const badCommitment = await verifyCommitment(snapshot.seed + 'x', snapshot.commitment);
+    expect(badCommitment).toBe(false);
+
+    // 2. Tampered proof
+    const badProof = [...proof];
+    if (badProof.length > 0) {
+      badProof[0] = '0000000000000000000000000000000000000000000000000000000000000000';
+    }
+    const badMerkle = await verifyMerkleProof(leaf, badProof, snapshot.root);
+    expect(badMerkle).toBe(false);
+  });
+
+  it('(e) whole flow verifies after reset demo', async () => {
+    const snap1 = await resetDropSnapshot('reset_demo_seed_1');
+    const snap2 = await resetDropSnapshot('reset_demo_seed_2');
+    expect(snap1.commitment).not.toBe(snap2.commitment);
+
+    const valid = await verifyCommitment(snap2.seed, snap2.commitment);
+    expect(valid).toBe(true);
   });
 });

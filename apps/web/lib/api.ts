@@ -36,10 +36,9 @@ import {
   AdminChaosResponse,
   AppError,
   createAppError,
-  computeDropDraw,
-  buildMerkleTree,
   computeAllocationLeaf,
-  sha256
+  sha256,
+  getOrCreateDropSnapshot
 } from '@fairdrop/shared';
 
 const isMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1';
@@ -257,10 +256,10 @@ async function getFallbackResponse<T>(path: string, options: RequestInit = {}): 
   }
 
   if (normalizedPath.includes('/drop/commitment')) {
-    const draw = await computeDropDraw('fairdrop-main-2026', PARTICIPANTS_POOL);
+    const snap = await getOrCreateDropSnapshot('fairdrop-main-2026');
     return {
       dropId: 'fairdrop-main-2026',
-      commitment: draw.commitment,
+      commitment: snap.commitment,
       algorithm: 'SHA-256',
       publishedAt: Date.now() - 3600000,
       description: 'SHA-256 cryptographic commitment of the random seed published before the drop.'
@@ -269,20 +268,18 @@ async function getFallbackResponse<T>(path: string, options: RequestInit = {}): 
 
   if (normalizedPath.includes('/drop/proof')) {
     const userId = bodyObj.userId || 'usr_mock_001';
-    const pool = Array.from(new Set([...PARTICIPANTS_POOL, userId]));
-    const draw = await computeDropDraw('fairdrop-main-2026', pool);
-    const tree = await buildMerkleTree(pool, draw.ranks);
-    const rank = draw.ranks.get(userId) || 40;
+    const snap = await getOrCreateDropSnapshot('fairdrop-main-2026');
+    const rank = snap.ranks[userId] || 40;
     const seatNumber = rank;
-    const leafHash = await computeAllocationLeaf(userId, rank, seatNumber);
-    const merkleProof = tree.proofs.get(userId) || [];
+    const leafHash = await computeAllocationLeaf(userId, rank);
+    const merkleProof = snap.proofs[userId] || [];
 
     return {
       dropId: 'fairdrop-main-2026',
       userId,
-      revealedSeed: draw.seed,
-      commitment: draw.commitment,
-      merkleRoot: tree.root,
+      revealedSeed: snap.seed,
+      commitment: snap.commitment,
+      merkleRoot: snap.root,
       merkleProof,
       userRank: rank,
       seatNumber,
@@ -321,13 +318,11 @@ async function getFallbackResponse<T>(path: string, options: RequestInit = {}): 
   if (normalizedPath.includes('/receipt/')) {
     const id = path.split('/').pop() || 'rcpt_default';
     const userId = 'usr_mock_001';
-    const pool = PARTICIPANTS_POOL;
-    const draw = await computeDropDraw('fairdrop-main-2026', pool);
-    const tree = await buildMerkleTree(pool, draw.ranks);
-    const rank = draw.ranks.get(userId) || 42;
+    const snap = await getOrCreateDropSnapshot('fairdrop-main-2026');
+    const rank = snap.ranks[userId] || 42;
     const seatNumber = rank;
-    const leafHash = await computeAllocationLeaf(userId, rank, seatNumber);
-    const merkleProof = tree.proofs.get(userId) || [];
+    const leafHash = await computeAllocationLeaf(userId, rank);
+    const merkleProof = snap.proofs[userId] || [];
 
     return {
       receiptId: id,
@@ -341,9 +336,9 @@ async function getFallbackResponse<T>(path: string, options: RequestInit = {}): 
       currency: 'USD',
       txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
       merkleProof,
-      merkleRoot: tree.root,
-      commitment: draw.commitment,
-      revealedSeed: draw.seed,
+      merkleRoot: snap.root,
+      commitment: snap.commitment,
+      revealedSeed: snap.seed,
       qrCodeUrl: `/verify?receipt=${id}`,
       allocationId: `alloc_fd_${id.slice(-8)}`,
       rank,
