@@ -52,14 +52,47 @@ const mockDb = {
 };
 
 export const handlers = [
-  // 1. POST /auth/register
+  // 1. POST /auth/register and /api/auth/register
+  http.post('*/auth/register', async ({ request }) => {
+    const body = await safeJson<{ email?: string }>(request);
+    const email = body.email || 'fan@example.com';
+
+    const response = {
+      success: true,
+      email,
+      otp: '123456',
+      demoMode: true,
+      message: 'OTP sent successfully',
+      challengeId: `chal_${Date.now()}_reg`,
+      expiresAt: Date.now() + 300000
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/auth/register', async ({ request }) => {
     const body = await safeJson<{ email?: string }>(request);
     const email = body.email || 'fan@example.com';
 
-    const response: RegisterResponse = {
+    const response = {
       success: true,
-      message: 'Verification code sent to your email address.',
+      email,
+      otp: '123456',
+      demoMode: true,
+      message: 'OTP sent successfully',
+      challengeId: `chal_${Date.now()}_reg`,
+      expiresAt: Date.now() + 300000
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
+  http.post('/api/auth/register', async ({ request }) => {
+    const body = await safeJson<{ email?: string }>(request);
+    const email = body.email || 'fan@example.com';
+
+    const response = {
+      success: true,
+      email,
+      otp: '123456',
+      demoMode: true,
+      message: 'OTP sent successfully',
       challengeId: `chal_${Date.now()}_reg`,
       expiresAt: Date.now() + 300000
     };
@@ -67,7 +100,41 @@ export const handlers = [
   }),
 
   // 2. POST /auth/verify
+  http.post('*/auth/verify', async ({ request }) => {
+    const body = await safeJson<{ email?: string; otp?: string }>(request);
+    const email = body.email || 'fan@example.com';
+    const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const response: VerifyOtpResponse = {
+      success: true,
+      token,
+      user: {
+        id: `usr_${Date.now().toString(36)}`,
+        email,
+        riskTier: 'low'
+      }
+    };
+    mockDb.users.set(token, { email, token });
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/auth/verify', async ({ request }) => {
+    const body = await safeJson<{ email?: string; otp?: string }>(request);
+    const email = body.email || 'fan@example.com';
+    const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const response: VerifyOtpResponse = {
+      success: true,
+      token,
+      user: {
+        id: `usr_${Date.now().toString(36)}`,
+        email,
+        riskTier: 'low'
+      }
+    };
+    mockDb.users.set(token, { email, token });
+    return HttpResponse.json(response, { status: 200 });
+  }),
+  http.post('/api/auth/verify', async ({ request }) => {
     const body = await safeJson<{ email?: string; otp?: string }>(request);
     const email = body.email || 'fan@example.com';
     const token = `jwt_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -86,6 +153,21 @@ export const handlers = [
   }),
 
   // 3. GET /me/state
+  http.get('*/me/state', async () => {
+    const response: UserStateResponse = {
+      userId: 'usr_mock_001',
+      email: 'fan@example.com',
+      status: mockDb.dropPhase === 'WAITING_ROOM' ? 'WAITING_ROOM' : 'QUEUED',
+      queuePosition: 84,
+      estimatedWaitSeconds: 45,
+      reservation: null,
+      receiptId: null,
+      riskTier: 'low',
+      powRequired: mockDb.powRequired,
+      powDifficulty: mockDb.powDifficulty
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.get('/me/state', async () => {
     const response: UserStateResponse = {
       userId: 'usr_mock_001',
@@ -103,6 +185,17 @@ export const handlers = [
   }),
 
   // 4. POST /pow/challenge
+  http.post('*/pow/challenge', async ({ request }) => {
+    const body = await safeJson<{ action?: string }>(request);
+    const response: PoWChallenge = {
+      challengeId: `chal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      salt: `fairdrop-salt-${Date.now()}`,
+      difficulty: mockDb.powDifficulty,
+      expiresAt: Date.now() + 300000,
+      algorithm: 'SHA-256'
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/pow/challenge', async ({ request }) => {
     const body = await safeJson<{ action?: string }>(request);
     const response: PoWChallenge = {
@@ -116,6 +209,14 @@ export const handlers = [
   }),
 
   // 5. POST /pow/solve
+  http.post('*/pow/solve', async () => {
+    const response: SolvePoWResponse = {
+      success: true,
+      solutionToken: `sol_tok_${Date.now()}_verified`,
+      verified: true
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/pow/solve', async () => {
     const response: SolvePoWResponse = {
       success: true,
@@ -126,6 +227,19 @@ export const handlers = [
   }),
 
   // 6. POST /drop/join
+  http.post('*/drop/join', async ({ request }) => {
+    const body = await safeJson<{ dropId?: string }>(request);
+    const response: DropJoinResponse = {
+      success: true,
+      dropId: body.dropId || 'fairdrop-main-2026',
+      status: 'WAITING_ROOM',
+      joinedAt: Date.now(),
+      initialRank: 120,
+      totalParticipants: 50000,
+      message: 'Successfully enrolled in waiting room. Ranks will be shuffled uniformly when drop starts.'
+    };
+    return HttpResponse.json(response, { status: 200 });
+  }),
   http.post('/drop/join', async ({ request }) => {
     const body = await safeJson<{ dropId?: string }>(request);
     const response: DropJoinResponse = {

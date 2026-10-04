@@ -1,0 +1,8 @@
+{
+  "name": "FairDrop",
+  "description": "Anti-bot flash crowd sale and registration engine with cryptographic fairness guarantees.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

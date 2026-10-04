@@ -18,8 +18,11 @@ export default function RootLayout({
   const isMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1';
 
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased min-h-screen flex flex-col bg-[#070c1e] text-slate-100 selection:bg-violet-500/30 selection:text-violet-200">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="antialiased min-h-screen flex flex-col bg-[#070c1e] text-slate-100 selection:bg-violet-500/30 selection:text-violet-200"
+      >
         <MswProvider>
           <ServiceWorkerRegister />
           {/* Top Global Navigation */}
