@@ -23,13 +23,24 @@ export default function RegisterPage() {
       const { collectSignals } = await import('@/lib/signals');
       const signals = await collectSignals();
 
+      const targetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/register`;
+      console.info('[FairDrop] Calling register endpoint:', targetUrl);
+
       await api.auth.register({
         email,
         clientFingerprint: signals.deviceFp
       });
       setStep('VERIFY');
     } catch (err: any) {
-      setError(err?.message || 'Registration failed');
+      // TypeError means a network-level failure (server down, CORS preflight blocked, wrong port)
+      if (err instanceof TypeError) {
+        const targetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/register`;
+        console.error('[FairDrop] Network error — could not reach:', targetUrl, err);
+        setError(`Cannot reach the API server at ${targetUrl}. Make sure the backend is running on that port.`);
+      } else {
+        console.error('[FairDrop] Registration API error:', err);
+        setError(err?.message || 'Registration failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -43,6 +54,9 @@ export default function RegisterPage() {
     try {
       const { collectSignals } = await import('@/lib/signals');
       const signals = await collectSignals();
+
+      const targetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/verify`;
+      console.info('[FairDrop] Calling verify endpoint:', targetUrl);
 
       const res = await api.auth.verify({
         email,
@@ -61,7 +75,14 @@ export default function RegisterPage() {
       });
       setStep('SUCCESS');
     } catch (err: any) {
-      setError(err?.message || 'Verification failed');
+      if (err instanceof TypeError) {
+        const targetUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/verify`;
+        console.error('[FairDrop] Network error — could not reach:', targetUrl, err);
+        setError(`Cannot reach the API server at ${targetUrl}. Make sure the backend is running on that port.`);
+      } else {
+        console.error('[FairDrop] Verify API error:', err);
+        setError(err?.message || 'Verification failed');
+      }
     } finally {
       setIsLoading(false);
     }

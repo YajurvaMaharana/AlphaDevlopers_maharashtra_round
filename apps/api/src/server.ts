@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { env } from './env';
 import { redis } from './redis';
 import { pool } from './db';
@@ -76,6 +77,31 @@ async function runMigrations() {
     client.release();
   }
 }
+
+// Register CORS — must be registered before routes
+fastify.register(cors, {
+  // Allow the Next.js dev server and any origin when DEMO_MODE is on
+  origin: (origin, cb) => {
+    const allowed = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+    ];
+    if (!origin || env.DEMO_MODE || allowed.includes(origin)) {
+      cb(null, true);
+    } else {
+      cb(new Error('CORS: origin not allowed'), false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Idempotency-Key',
+    'Last-Event-ID',
+  ],
+});
 
 // Register plugins
 fastify.register(abuseGuardPlugin);
