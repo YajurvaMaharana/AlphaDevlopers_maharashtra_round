@@ -29,7 +29,7 @@ export default function RootLayout({
           <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-4 lg:px-8 py-3 backdrop-blur-md">
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
               {/* Brand */}
-              <Link href="/" className="flex items-center gap-3 group">
+              <Link href="/" prefetch={true} className="flex items-center gap-3 group">
                 <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-blue-600 shadow-lg shadow-violet-500/25 group-hover:scale-105 transition-transform">
                   <ShieldCheck className="w-5 h-5 text-white" />
                 </div>
@@ -48,10 +48,11 @@ export default function RootLayout({
                 </div>
               </Link>
 
-              {/* Navigation Links */}
+              {/* Navigation Links with Next.js Prefetching */}
               <nav className="flex items-center flex-wrap gap-1 text-xs font-medium">
                 <Link
                   href="/register"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
                 >
                   <Users className="w-3.5 h-3.5 text-violet-400" />
@@ -59,6 +60,7 @@ export default function RootLayout({
                 </Link>
                 <Link
                   href="/waiting"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
                 >
                   <Ticket className="w-3.5 h-3.5 text-blue-400" />
@@ -66,6 +68,7 @@ export default function RootLayout({
                 </Link>
                 <Link
                   href="/checkout"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -73,6 +76,7 @@ export default function RootLayout({
                 </Link>
                 <Link
                   href="/verify"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
                 >
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
@@ -83,6 +87,7 @@ export default function RootLayout({
 
                 <Link
                   href="/admin/lab"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 border border-violet-500/30 transition-all flex items-center gap-1.5"
                 >
                   <Cpu className="w-3.5 h-3.5" />
@@ -90,6 +95,7 @@ export default function RootLayout({
                 </Link>
                 <Link
                   href="/admin/compare"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all flex items-center gap-1.5"
                 >
                   <Layers className="w-3.5 h-3.5" />
@@ -97,6 +103,7 @@ export default function RootLayout({
                 </Link>
                 <Link
                   href="/admin/dashboard"
+                  prefetch={true}
                   className="px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/30 transition-all flex items-center gap-1.5"
                 >
                   <Activity className="w-3.5 h-3.5" />

@@ -37,14 +37,13 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { api } from '@/lib/api';
 import { LiveMetricsPayload } from '@fairdrop/shared';
 
-// Interface for live 120-point rolling traffic buffer
+// Interface for live 30-point downsampled rolling traffic buffer
 interface TrafficDataPoint {
   time: string;
   timestamp: number;
@@ -70,6 +69,153 @@ interface SecurityEvent {
   reasons?: string[];
   severity: 'low' | 'medium' | 'high' | 'good';
 }
+
+// =========================================================================
+// Memoized Heavy Chart Subcomponents
+// =========================================================================
+
+interface TrafficAreaChartProps {
+  data: TrafficDataPoint[];
+  requestsPerSecond: number;
+  tooltip: (props: any) => React.ReactNode;
+}
+
+const TrafficAreaChart = React.memo(function TrafficAreaChart({
+  data,
+  requestsPerSecond,
+  tooltip
+}: TrafficAreaChartProps) {
+  return (
+    <div className="xl:col-span-2 glass-panel p-5 rounded-3xl border border-white/10 space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-violet-400 shrink-0" />
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            Real-Time Traffic: Requests/sec vs. Rejected/sec
+          </h3>
+        </div>
+        <div className="flex items-center flex-wrap gap-3 text-xs font-mono">
+          <span className="flex items-center gap-1.5 text-violet-300">
+            <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+            Requests/sec ({requestsPerSecond.toLocaleString()})
+          </span>
+          <span className="flex items-center gap-1.5 text-red-300">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+            Rejected/sec
+          </span>
+          <span className="text-slate-500 text-[10px]">30 pts (30s window)</span>
+        </div>
+      </div>
+
+      <div className="h-[260px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="reqGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+              </linearGradient>
+              <linearGradient id="rejGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
+            <XAxis dataKey="time" stroke="#64748b" tick={{ fontSize: 10 }} minTickGap={20} />
+            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+            <Tooltip content={tooltip as any} />
+            <Area
+              type="monotone"
+              dataKey="requestsPerSec"
+              name="Requests/sec"
+              stroke="#8b5cf6"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#reqGradient)"
+              isAnimationActive={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="rejectedPerSec"
+              name="Rejected/sec"
+              stroke="#ef4444"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#rejGradient)"
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+});
+
+interface DecileBarChartProps {
+  data: DecileDataPoint[];
+  defensesEnabled: boolean;
+}
+
+const DecileBarChart = React.memo(function DecileBarChart({
+  data,
+  defensesEnabled
+}: DecileBarChartProps) {
+  return (
+    <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-violet-400 shrink-0" />
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            Win Rate by Speed Decile
+          </h3>
+        </div>
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          Fair Baseline: 10.0%
+        </span>
+      </div>
+      <p className="text-[11px] text-slate-400">
+        A flat chart proves arrival speed grants zero advantage — everyone in the window has equal lottery odds.
+      </p>
+
+      <div className="h-[210px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
+            <XAxis dataKey="decile" stroke="#64748b" tick={{ fontSize: 10 }} />
+            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} domain={[0, defensesEnabled ? 20 : 80]} />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0].payload as DecileDataPoint;
+                return (
+                  <div className="p-2 rounded-lg bg-slate-900 border border-white/10 text-xs font-mono space-y-0.5">
+                    <div className="text-violet-300 font-bold">{d.decile} ({d.speedLabel})</div>
+                    <div className="text-white">Win Rate: {d.winRatePct}%</div>
+                  </div>
+                );
+              }}
+            />
+            <ReferenceLine
+              y={10}
+              stroke="#22c55e"
+              strokeDasharray="4 4"
+              strokeWidth={2}
+              label={{ value: 'Fair Target (10%)', fill: '#22c55e', fontSize: 10, position: 'top' }}
+            />
+            <Bar dataKey="winRatePct" isAnimationActive={false} radius={[4, 4, 0, 0]}>
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={defensesEnabled ? '#8b5cf6' : index < 2 ? '#ef4444' : '#64748b'}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+});
 
 function AdminDashboardContent() {
   const searchParams = useSearchParams();
@@ -109,11 +255,11 @@ function AdminDashboardContent() {
   const [isTogglingDefenses, setIsTogglingDefenses] = useState(false);
   const [streamConnected, setStreamConnected] = useState(true);
 
-  // 120-point rolling traffic data (requests vs rejected)
+  // 30-point downsampled rolling traffic data (requests vs rejected)
   const [trafficHistory, setTrafficHistory] = useState<TrafficDataPoint[]>(() => {
     const initial: TrafficDataPoint[] = [];
     const now = Date.now();
-    for (let i = 119; i >= 0; i--) {
+    for (let i = 29; i >= 0; i--) {
       const t = new Date(now - i * 1000);
       initial.push({
         time: t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -128,7 +274,6 @@ function AdminDashboardContent() {
   // Decile win rate data (10 speed deciles)
   const decileData: DecileDataPoint[] = useMemo(() => {
     if (defensesEnabled) {
-      // With defenses enabled (FairDrop shuffle), win rate is strictly uniform ~10% (+-0.5% random variance)
       return [
         { decile: 'D1', speedLabel: '< 15ms (Fastest)', winRatePct: 10.2 },
         { decile: 'D2', speedLabel: '15-25ms', winRatePct: 9.8 },
@@ -142,7 +287,6 @@ function AdminDashboardContent() {
         { decile: 'D10', speedLabel: '> 300ms (Slowest)', winRatePct: 9.9 },
       ];
     } else {
-      // With defenses disabled (FCFS), D1 and D2 bots claim 92% of all seats!
       return [
         { decile: 'D1', speedLabel: '< 15ms (Fastest)', winRatePct: 68.4 },
         { decile: 'D2', speedLabel: '15-25ms', winRatePct: 23.8 },
@@ -178,7 +322,7 @@ function AdminDashboardContent() {
     ];
   }, [metrics.seatsSold, metrics.humanSeatSharePct, metrics.botSeatSharePct]);
 
-  // Funnel data: joined -> admitted -> reserved -> paid
+  // Funnel steps data
   const funnelData = useMemo(() => {
     const f = metrics.funnel;
     return [
@@ -309,160 +453,191 @@ function AdminDashboardContent() {
     }
   };
 
-  // Live Stream / Simulated Tick Generator (Jank-Free 1-second cadence)
+  // Live Stream / Simulated Tick Generator (with visibility pause & unmount cleanup)
   useEffect(() => {
+    let ticker: NodeJS.Timeout | null = null;
     let sseSource: EventSource | null = null;
 
-    if (!isMockMode && typeof window !== 'undefined' && window.EventSource) {
-      try {
-        const streamUrl = (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1')
-          ? '/metrics/stream'
-          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/metrics/stream`;
-        sseSource = new EventSource(streamUrl);
+    const startStream = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
-        sseSource.onmessage = (e) => {
-          try {
-            const data: LiveMetricsPayload = JSON.parse(e.data);
-            setMetrics(data);
-            setDefensesEnabled(data.defensesEnabled);
-            setStreamConnected(true);
-          } catch {
-            // ignore
-          }
-        };
+      if (!isMockMode && typeof window !== 'undefined' && window.EventSource && !sseSource) {
+        try {
+          const streamUrl = (process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1')
+            ? '/metrics/stream'
+            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/metrics/stream`;
+          sseSource = new EventSource(streamUrl);
 
-        sseSource.onerror = () => {
+          sseSource.onmessage = (e) => {
+            try {
+              const data: LiveMetricsPayload = JSON.parse(e.data);
+              setMetrics(data);
+              setDefensesEnabled(data.defensesEnabled);
+              setStreamConnected(true);
+            } catch {}
+          };
+
+          sseSource.onerror = () => {
+            setStreamConnected(false);
+          };
+        } catch {
           setStreamConnected(false);
-        };
-      } catch {
-        setStreamConnected(false);
+        }
       }
+
+      if (!ticker) {
+        ticker = setInterval(() => {
+          if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+          const baseReqs = defensesEnabled ? 2800 : 4200;
+          const rps = baseReqs + Math.floor(Math.sin(Date.now() / 4000) * 450 + Math.random() * 250);
+          const rejected = defensesEnabled
+            ? Math.floor(rps * 0.68 + Math.random() * 80)
+            : Math.floor(rps * 0.05 + Math.random() * 20);
+
+          // Append to 30-point downsampled rolling buffer
+          setTrafficHistory((prev) => {
+            const nextPoint: TrafficDataPoint = {
+              time: timeStr,
+              timestamp: Date.now(),
+              requestsPerSec: rps,
+              rejectedPerSec: rejected,
+            };
+            const updated = [...prev, nextPoint];
+            return updated.length > 30 ? updated.slice(-30) : updated;
+          });
+
+          // Slowly increment seats sold up to 500
+          setMetrics((prev) => {
+            const newSold = Math.min(500, prev.seatsSold + (Math.random() > 0.6 ? 1 : 0));
+            const newRemaining = Math.max(0, 500 - newSold);
+            return {
+              ...prev,
+              requestsPerSecond: rps,
+              seatsSold: newSold,
+              seatsRemaining: newRemaining,
+              rateLimit429Count: prev.rateLimit429Count + (defensesEnabled ? Math.floor(Math.random() * 12) : 0),
+              powBlockedCount: prev.powBlockedCount + (defensesEnabled ? Math.floor(Math.random() * 28) : 0),
+              funnel: {
+                ...prev.funnel,
+                paid: newSold,
+              },
+            };
+          });
+
+          // Periodically inject realistic security events into feed
+          if (Math.random() > 0.65) {
+            const eventTemplates: Array<Omit<SecurityEvent, 'id' | 'timestamp'>> = [
+              {
+                type: 'IP_PENALTY',
+                message: 'Token bucket 429 triggered: Cloud datacenter flood detected',
+                ipMasked: `3.88.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'DATACENTER',
+                reasons: ['datacenter network', "timezone doesn't match location", 'High request rate'],
+                severity: 'high',
+              },
+              {
+                type: 'IP_PENALTY',
+                message: 'IP penalty applied: Anonymization proxy cluster rate-limited',
+                ipMasked: `185.220.${Math.floor(100 + Math.random() * 20)}.xx`,
+                asnType: 'VPN',
+                reasons: ['vpn or proxy network', 'High device fingerprint reuse'],
+                severity: 'medium',
+              },
+              {
+                type: 'IP_PENALTY',
+                message: 'Automated BotLab botnet node throttled and penalized',
+                ipMasked: `192.168.1.${Math.floor(1 + Math.random() * 50)}`,
+                asnType: 'DATACENTER',
+                reasons: ['datacenter network', 'BotLab simulated botnet cluster', 'Superhuman join reaction time'],
+                severity: 'high',
+              },
+              {
+                type: 'IP_PENALTY',
+                message: 'Geographic discrepancy: Reported timezone mismatches IP origin',
+                ipMasked: `86.130.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'RESIDENTIAL',
+                reasons: ["timezone doesn't match location", 'High request rate'],
+                severity: 'medium',
+              },
+              {
+                type: 'TARPIT',
+                message: `Tarpit delay engaged: HTTP response delayed by ${(3 + Math.random() * 3).toFixed(1)}s`,
+                ipMasked: `45.154.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'DATACENTER',
+                reasons: ['datacenter network', 'Anomalous User-Agent'],
+                severity: 'medium',
+              },
+              {
+                type: 'POW_ESCALATION',
+                message: 'Adaptive proof-of-work puzzle difficulty escalated to 6 leading zeros',
+                ipMasked: `194.26.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'DATACENTER',
+                reasons: ['datacenter network', 'High IP subnet reuse'],
+                severity: 'high',
+              },
+              {
+                type: 'SYBIL_BLOCKED',
+                message: `Canvas fingerprint cluster collapsed: ${Math.floor(15 + Math.random() * 35)} headless bots denied`,
+                ipMasked: `103.251.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'VPN',
+                reasons: ['vpn or proxy network', 'Prior abuse penalties'],
+                severity: 'high',
+              },
+              {
+                type: 'SEAT_ALLOCATED',
+                message: `Seat inventory reservation secured by organic fan (Latency: ${Math.floor(18 + Math.random() * 35)}ms)`,
+                ipMasked: `73.4.${Math.floor(10 + Math.random() * 200)}.xx`,
+                asnType: 'RESIDENTIAL',
+                severity: 'good',
+              },
+            ];
+
+            const chosen = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
+            const newEvent: SecurityEvent = {
+              id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              timestamp: timeStr,
+              ...chosen,
+            };
+
+            setEvents((prev) => [newEvent, ...prev.slice(0, 49)]);
+          }
+        }, 1000);
+      }
+    };
+
+    const stopStream = () => {
+      if (ticker) {
+        clearInterval(ticker);
+        ticker = null;
+      }
+      if (sseSource) {
+        sseSource.close();
+        sseSource = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        startStream();
+      } else {
+        stopStream();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
-
-    // High-performance timer driving smooth 1-second data updates
-    const ticker = setInterval(() => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-      // Generate realistic traffic variations
-      const baseReqs = defensesEnabled ? 2800 : 4200;
-      const rps = baseReqs + Math.floor(Math.sin(Date.now() / 4000) * 450 + Math.random() * 250);
-      const rejected = defensesEnabled
-        ? Math.floor(rps * 0.68 + Math.random() * 80)
-        : Math.floor(rps * 0.05 + Math.random() * 20);
-
-      // Append to 120-point rolling buffer
-      setTrafficHistory((prev) => {
-        const nextPoint: TrafficDataPoint = {
-          time: timeStr,
-          timestamp: Date.now(),
-          requestsPerSec: rps,
-          rejectedPerSec: rejected,
-        };
-        const updated = [...prev, nextPoint];
-        return updated.length > 120 ? updated.slice(-120) : updated;
-      });
-
-      // Slowly increment seats sold up to 500
-      setMetrics((prev) => {
-        const newSold = Math.min(500, prev.seatsSold + (Math.random() > 0.6 ? 1 : 0));
-        const newRemaining = Math.max(0, 500 - newSold);
-        return {
-          ...prev,
-          requestsPerSecond: rps,
-          seatsSold: newSold,
-          seatsRemaining: newRemaining,
-          rateLimit429Count: prev.rateLimit429Count + (defensesEnabled ? Math.floor(Math.random() * 12) : 0),
-          powBlockedCount: prev.powBlockedCount + (defensesEnabled ? Math.floor(Math.random() * 28) : 0),
-          funnel: {
-            ...prev.funnel,
-            paid: newSold,
-          },
-        };
-      });
-
-      // Periodically inject realistic security events into feed
-      if (Math.random() > 0.65) {
-        const eventTemplates: Array<Omit<SecurityEvent, 'id' | 'timestamp'>> = [
-          {
-            type: 'IP_PENALTY',
-            message: 'Token bucket 429 triggered: Cloud datacenter flood detected',
-            ipMasked: `3.88.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'DATACENTER',
-            reasons: ['datacenter network', "timezone doesn't match location", 'High request rate'],
-            severity: 'high',
-          },
-          {
-            type: 'IP_PENALTY',
-            message: 'IP penalty applied: Anonymization proxy cluster rate-limited',
-            ipMasked: `185.220.${Math.floor(100 + Math.random() * 20)}.xx`,
-            asnType: 'VPN',
-            reasons: ['vpn or proxy network', 'High device fingerprint reuse'],
-            severity: 'medium',
-          },
-          {
-            type: 'IP_PENALTY',
-            message: 'Automated BotLab botnet node throttled and penalized',
-            ipMasked: `192.168.1.${Math.floor(1 + Math.random() * 50)}`,
-            asnType: 'DATACENTER',
-            reasons: ['datacenter network', 'BotLab simulated botnet cluster', 'Superhuman join reaction time'],
-            severity: 'high',
-          },
-          {
-            type: 'IP_PENALTY',
-            message: 'Geographic discrepancy: Reported timezone mismatches IP origin',
-            ipMasked: `86.130.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'RESIDENTIAL',
-            reasons: ["timezone doesn't match location", 'High request rate'],
-            severity: 'medium',
-          },
-          {
-            type: 'TARPIT',
-            message: `Tarpit delay engaged: HTTP response delayed by ${(3 + Math.random() * 3).toFixed(1)}s`,
-            ipMasked: `45.154.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'DATACENTER',
-            reasons: ['datacenter network', 'Anomalous User-Agent'],
-            severity: 'medium',
-          },
-          {
-            type: 'POW_ESCALATION',
-            message: 'Adaptive proof-of-work puzzle difficulty escalated to 6 leading zeros',
-            ipMasked: `194.26.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'DATACENTER',
-            reasons: ['datacenter network', 'High IP subnet reuse'],
-            severity: 'high',
-          },
-          {
-            type: 'SYBIL_BLOCKED',
-            message: `Canvas fingerprint cluster collapsed: ${Math.floor(15 + Math.random() * 35)} headless bots denied`,
-            ipMasked: `103.251.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'VPN',
-            reasons: ['vpn or proxy network', 'Prior abuse penalties'],
-            severity: 'high',
-          },
-          {
-            type: 'SEAT_ALLOCATED',
-            message: `Seat inventory reservation secured by organic fan (Latency: ${Math.floor(18 + Math.random() * 35)}ms)`,
-            ipMasked: `73.4.${Math.floor(10 + Math.random() * 200)}.xx`,
-            asnType: 'RESIDENTIAL',
-            severity: 'good',
-          },
-        ];
-
-        const chosen = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
-        const newEvent: SecurityEvent = {
-          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          timestamp: timeStr,
-          ...chosen,
-        };
-
-        setEvents((prev) => [newEvent, ...prev.slice(0, 49)]);
-      }
-    }, 1000);
+    startStream();
 
     return () => {
-      clearInterval(ticker);
-      if (sseSource) sseSource.close();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      stopStream();
     };
   }, [defensesEnabled, isMockMode]);
 
@@ -485,58 +660,50 @@ function AdminDashboardContent() {
   }, []);
 
   return (
-    <div className={`min-h-screen bg-[#070c1e] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 ${isFullscreen ? 'p-8' : ''}`}>
+    <div className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 ${isFullscreen ? 'p-8' : ''}`}>
       {/* 1. Header Bar: Title, Projector Fullscreen, Live Stream Status, DEFENSES Badge */}
       <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 shrink-0">
               <Activity className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                  FairDrop Mission Control
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  Mission Control: Real-Time Defense Telemetry
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase bg-slate-800 border border-white/10 text-slate-300">
-                  1920x1080 Projector
+                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                  500 Seats / 50k Fans
                 </span>
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
-                  <Radio className="w-3 h-3 animate-pulse" />
-                  <span>{streamConnected ? 'STREAM LIVE (1 Hz)' : 'MOCK FEED ACTIVE'}</span>
-                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                High-demand anti-bot sale observability &bull; 500 seats / 50,000 concurrent fans &bull; Real-time cryptographic telemetry
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
+                Atomic Lua inventory, cryptographic shuffle, PoW puzzles, and sub-second defense telemetry.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Header Actions: Defenses Badge & Fullscreen Button */}
-        <div className="flex items-center flex-wrap gap-3">
-          {/* DEFENSES: ON/OFF Interactive Badge */}
+        {/* Action Controls & DEFENSES Master Switch */}
+        <div className="flex items-center flex-wrap gap-2.5 self-end md:self-auto">
+          {/* Live Status Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono">
+            <span className={`w-2.5 h-2.5 rounded-full ${streamConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className="text-slate-300">{streamConnected ? 'Live 1Hz Stream' : 'Simulated Telemetry'}</span>
+          </div>
+
+          {/* Defense Toggle Master Switch */}
           <button
             onClick={handleToggleDefenses}
             disabled={isTogglingDefenses}
-            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer shadow-lg ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
               defensesEnabled
-                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-emerald-500/20'
-                : 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30 shadow-red-500/30 animate-pulse'
+                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-emerald-500/10'
+                : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 shadow-red-500/10 animate-pulse'
             }`}
-            title="Click to toggle defenses and observe real-time adversarial impact"
           >
-            {defensesEnabled ? (
-              <>
-                <Lock className="w-4 h-4 text-emerald-400" />
-                <span>DEFENSES: ACTIVE (SHUFFLE + POW)</span>
-              </>
-            ) : (
-              <>
-                <Unlock className="w-4 h-4 text-red-400" />
-                <span>DEFENSES: DISABLED (FCFS VULNERABLE)</span>
-              </>
-            )}
+            {defensesEnabled ? <Lock className="w-4 h-4 text-emerald-400" /> : <Unlock className="w-4 h-4 text-red-400" />}
+            <span>DEFENSES: {defensesEnabled ? 'ARMED' : 'DISARMED'}</span>
             <Sliders className="w-3.5 h-3.5 opacity-60 ml-1" />
           </button>
 
@@ -552,7 +719,7 @@ function AdminDashboardContent() {
       </header>
 
       {/* 2. Top KPI Tiles with Smooth Number Tweening */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Tile 1: Seats Sold */}
         <div className="glass-panel p-4 rounded-2xl border border-white/10 space-y-1 relative overflow-hidden">
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -590,7 +757,7 @@ function AdminDashboardContent() {
           </div>
         </div>
 
-        {/* Tile 3: Oversell Incidents (A Big Green 0) */}
+        {/* Tile 3: Oversell Incidents */}
         <div className="glass-panel p-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 space-y-1">
           <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">
             <span>Oversell Incidents</span>
@@ -659,71 +826,13 @@ function AdminDashboardContent() {
       </section>
 
       {/* 3. Middle Tier: Live Area Chart & Stacked Seat Ownership */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Live Area Chart: requests/sec vs rejected/sec (120 Rolling Points) */}
-        <div className="lg:col-span-2 glass-panel p-5 rounded-3xl border border-white/10 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-violet-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Real-Time Traffic: Requests/sec vs. Rejected/sec
-              </h3>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-mono">
-              <span className="flex items-center gap-1.5 text-violet-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                Requests/sec ({metrics.requestsPerSecond.toLocaleString()})
-              </span>
-              <span className="flex items-center gap-1.5 text-red-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                Rejected/sec
-              </span>
-              <span className="text-slate-500 text-[10px]">120 pts (2 min)</span>
-            </div>
-          </div>
-
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trafficHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="reqGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="rejGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-                <XAxis dataKey="time" stroke="#64748b" tick={{ fontSize: 10 }} minTickGap={30} />
-                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
-                <Tooltip content={<CustomTooltip />} />
-                {/* isAnimationActive={false} eliminates chart re-draw jank when 1-sec ticks arrive! */}
-                <Area
-                  type="monotone"
-                  dataKey="requestsPerSec"
-                  name="Requests/sec"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#reqGradient)"
-                  isAnimationActive={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="rejectedPerSec"
-                  name="Rejected/sec"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#rejGradient)"
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Memoized Live Area Chart */}
+        <TrafficAreaChart
+          data={trafficHistory}
+          requestsPerSecond={metrics.requestsPerSecond}
+          tooltip={CustomTooltip}
+        />
 
         {/* Stacked Bar Chart: Seat Ownership Human / Bot / Unknown */}
         <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-4">
@@ -823,62 +932,9 @@ function AdminDashboardContent() {
       </section>
 
       {/* 4. Bottom Tier: Win Rate by Speed Decile, Conversion Funnel, & Scrolling Security Event Feed */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Win Rate by Speed Decile Bar Chart with Dashed Reference Line */}
-        <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-violet-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Win Rate by Speed Decile
-              </h3>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Fair Baseline: 10.0%
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            A flat chart proves arrival speed grants zero advantage — everyone in the window has equal lottery odds.
-          </p>
-
-          <div className="h-[210px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={decileData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-                <XAxis dataKey="decile" stroke="#64748b" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} domain={[0, defensesEnabled ? 20 : 80]} />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload as DecileDataPoint;
-                    return (
-                      <div className="p-2 rounded-lg bg-slate-900 border border-white/10 text-xs font-mono space-y-0.5">
-                        <div className="text-violet-300 font-bold">{d.decile} ({d.speedLabel})</div>
-                        <div className="text-white">Win Rate: {d.winRatePct}%</div>
-                      </div>
-                    );
-                  }}
-                />
-                {/* Dashed Reference Line at 10% (the uniform baseline) */}
-                <ReferenceLine
-                  y={10}
-                  stroke="#22c55e"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                  label={{ value: 'Fair Target (10%)', fill: '#22c55e', fontSize: 10, position: 'top' }}
-                />
-                <Bar dataKey="winRatePct" isAnimationActive={false} radius={[4, 4, 0, 0]}>
-                  {decileData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={defensesEnabled ? '#8b5cf6' : index < 2 ? '#ef4444' : '#64748b'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Memoized Win Rate by Speed Decile Bar Chart */}
+        <DecileBarChart data={decileData} defensesEnabled={defensesEnabled} />
 
         {/* Funnel: Joined -> Admitted -> Reserved -> Paid */}
         <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-3">
@@ -893,7 +949,7 @@ function AdminDashboardContent() {
           </div>
 
           <div className="space-y-3 pt-1">
-            {funnelData.map((item, idx) => (
+            {funnelData.map((item) => (
               <div key={item.step} className="space-y-1">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-300 font-medium">{item.step}</span>
@@ -932,7 +988,7 @@ function AdminDashboardContent() {
         </div>
 
         {/* Scrolling Security Event Feed */}
-        <div className="glass-panel p-5 rounded-3xl border border-white/10 flex flex-col space-y-3 h-[320px]">
+        <div className="glass-panel p-5 rounded-3xl border border-white/10 flex flex-col space-y-3 h-[320px] md:col-span-2 xl:col-span-1">
           <div className="flex items-center justify-between pb-2 border-b border-white/10">
             <div className="flex items-center gap-2">
               <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
