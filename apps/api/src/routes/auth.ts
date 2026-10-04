@@ -10,6 +10,7 @@ import {
 import { verifyGoogleIdToken, createSessionJwt } from '../services/googleAuth';
 import { upsertGoogleUser, upsertOtpUser, computeFairId } from '../db/postgres';
 import { updateRiskScore, getRiskTier } from '../services/riskIntegration';
+import { extractClientIp, lookupIpNetwork, checkTimezoneMismatch } from '../services/networkSignals';
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
@@ -35,14 +36,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // 3. Compute FairID = sha256(google_sub + ':' + deviceFp)
       const fairId = computeFairId(googleUser.sub, deviceFp);
 
-      // 4. Evaluate initial risk score with Google authMethod discount applied
+      // 4. Extract network signals from client IP & headers
+      const clientIp = extractClientIp(request);
+      const netInfo = lookupIpNetwork(clientIp);
+      const clientTz = signals?.timezone || signals?.clientTimezone;
+      const tzMismatch = checkTimezoneMismatch(clientTz, netInfo.expectedTimezones);
+
+      // 5. Evaluate initial risk score with Google authMethod discount and network signals
       const riskResult = await updateRiskScore(fastify, `usr_g_${googleUser.sub}`, {
         ...(signals || {}),
         authMethod: 'google',
         deviceFpReuseCount: 1,
+        asnType: netInfo.asnType,
+        subnet24: netInfo.subnet24,
+        timezoneMismatch: tzMismatch,
+        ip: clientIp,
       });
 
-      // 5. Upsert user record into Postgres (or in-memory fallback)
+      // 6. Upsert user record into Postgres (or in-memory fallback)
       const user = await upsertGoogleUser({
         googleSub: googleUser.sub,
         email: googleUser.email,
@@ -50,7 +61,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         riskTier: riskResult.tier,
       });
 
-      // 6. Issue unified session JWT containing authMethod: 'google'
+      // 7. Issue unified session JWT containing authMethod: 'google'
       const sessionToken = await createSessionJwt({
         sub: user.id,
         email: user.email,
@@ -59,7 +70,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         authMethod: 'google',
       });
 
-      // 7. Store user session mapping in Redis for quick state lookups
+      // 8. Store user session mapping in Redis for quick state lookups
       await fastify.redis.hset(`session:${sessionToken}`, {
         userId: user.id,
         email: user.email,
@@ -159,10 +170,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const fairId = computeFairId(email, clientFingerprint);
     const userId = `usr_otp_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-    // Risk scoring with authMethod: 'otp'
+    // Extract network signals from client IP & headers
+    const clientIp = extractClientIp(request);
+    const netInfo = lookupIpNetwork(clientIp);
+    const clientTz = signals?.timezone || signals?.clientTimezone;
+    const tzMismatch = checkTimezoneMismatch(clientTz, netInfo.expectedTimezones);
+
+    // Risk scoring with authMethod: 'otp' and network signals
     const riskResult = await updateRiskScore(fastify, userId, {
       ...(signals || {}),
       authMethod: 'otp',
+      asnType: netInfo.asnType,
+      subnet24: netInfo.subnet24,
+      timezoneMismatch: tzMismatch,
+      ip: clientIp,
     });
 
     // Upsert user in Postgres

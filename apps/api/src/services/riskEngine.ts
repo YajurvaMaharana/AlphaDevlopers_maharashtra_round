@@ -1,3 +1,5 @@
+import { AsnType } from './networkSignals';
+
 export interface RiskSignals {
   requestsPerMin: number;
   burstiness: number; // coefficient of variation (stddev/mean) of inter-arrival times
@@ -8,9 +10,15 @@ export interface RiskSignals {
   accountAgeSec: number;
   joinLatencyMs: number; // time from page load to join click
   behaviorScore: number; // 0 (bot-like) to 1 (human-like)
-  powSolveTimeMs: number; 
+  powSolveTimeMs: number;
   penaltyCount: number;
   authMethod?: 'google' | 'otp';
+  // Network & Geolocation signals
+  asnType?: AsnType;
+  subnet24?: string;
+  timezoneMismatch?: boolean;
+  clientTimezone?: string;
+  ip?: string;
 }
 
 export interface RiskResult {
@@ -36,6 +44,15 @@ export const RISK_CONFIG = {
   authMethod: {
     googleDiscountPoints: 10,
     otpBaselinePoints: 0,
+  },
+  asnType: {
+    datacenterPoints: 25,
+    vpnProxyPoints: 20,
+    residentialPoints: 0,
+    unknownPoints: 0,
+  },
+  timezoneMismatch: {
+    points: 15,
   },
 };
 
@@ -121,6 +138,27 @@ export function evaluateRisk(signals: RiskSignals): RiskResult {
     }
   }
 
+  // 13. Network ASN Type (Datacenter / VPN Proxy / Residential)
+  if (signals.asnType === 'datacenter') {
+    contributions.push({
+      reason: 'datacenter network',
+      points: RISK_CONFIG.asnType.datacenterPoints,
+    });
+  } else if (signals.asnType === 'vpn_proxy') {
+    contributions.push({
+      reason: 'vpn or proxy network',
+      points: RISK_CONFIG.asnType.vpnProxyPoints,
+    });
+  }
+
+  // 14. Timezone Mismatch
+  if (signals.timezoneMismatch === true) {
+    contributions.push({
+      reason: "timezone doesn't match location",
+      points: RISK_CONFIG.timezoneMismatch.points,
+    });
+  }
+
   // Sum points and clamp between 0 and 100
   let totalScore = contributions.reduce((sum, c) => sum + c.points, 0);
   totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
@@ -134,14 +172,10 @@ export function evaluateRisk(signals: RiskSignals): RiskResult {
   const positiveContributions = contributions.filter((c) => c.points > 0);
   positiveContributions.sort((a, b) => b.points - a.points);
   const reasons = positiveContributions.slice(0, 3).map((c) => c.reason);
-  
-  // Pad reasons to always have length 3 if we need exact string[3] format? 
-  // Requirements: "reasons: string[3] where reasons name the top 3 contributing signals"
-  // It's fine to just return an array of up to 3 strings.
 
   return {
     score: totalScore,
     tier,
-    reasons
+    reasons,
   };
 }

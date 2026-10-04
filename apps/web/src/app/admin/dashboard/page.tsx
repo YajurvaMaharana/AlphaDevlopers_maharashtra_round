@@ -66,6 +66,8 @@ interface SecurityEvent {
   type: 'IP_PENALTY' | 'TARPIT' | 'POW_ESCALATION' | 'SYBIL_BLOCKED' | 'SEAT_ALLOCATED' | 'REPLAY_BURNED';
   message: string;
   ipMasked?: string;
+  asnType?: 'residential' | 'datacenter' | 'vpn_proxy' | 'unknown' | 'DATACENTER' | 'VPN' | 'RESIDENTIAL' | string;
+  reasons?: string[];
   severity: 'low' | 'medium' | 'high' | 'good';
 }
 
@@ -192,49 +194,60 @@ function AdminDashboardContent() {
     {
       id: 'evt_1',
       timestamp: '20:42:15',
-      type: 'TARPIT',
-      message: 'Tarpit engaged (4.8s delay) on volumetric crawler cluster',
-      ipMasked: '185.220.101.xx',
-      severity: 'medium',
+      type: 'IP_PENALTY',
+      message: 'Token bucket 429 triggered: Cloud datacenter flood detected',
+      ipMasked: '3.88.50.xx',
+      asnType: 'DATACENTER',
+      reasons: ['datacenter network', "timezone doesn't match location", 'High request rate'],
+      severity: 'high',
     },
     {
       id: 'evt_2',
       timestamp: '20:42:14',
-      type: 'POW_ESCALATION',
-      message: 'PoW difficulty escalated to 6 leading zeros for subnet 194.26.29.0/24',
-      ipMasked: '194.26.29.xx',
-      severity: 'high',
+      type: 'IP_PENALTY',
+      message: 'IP penalty applied: Anonymization proxy cluster rate-limited',
+      ipMasked: '185.220.101.xx',
+      asnType: 'VPN',
+      reasons: ['vpn or proxy network', 'High device fingerprint reuse'],
+      severity: 'medium',
     },
     {
       id: 'evt_3',
       timestamp: '20:42:12',
-      type: 'SYBIL_BLOCKED',
-      message: 'Sybil device fingerprint collision detected: 42 connections pruned',
-      ipMasked: '45.154.255.xx',
+      type: 'IP_PENALTY',
+      message: 'Automated BotLab simulated botnet cluster throttled and penalized',
+      ipMasked: '192.168.1.xx',
+      asnType: 'DATACENTER',
+      reasons: ['datacenter network', 'BotLab botnet cluster', 'Superhuman join reaction time'],
       severity: 'high',
     },
     {
       id: 'evt_4',
       timestamp: '20:42:10',
-      type: 'IP_PENALTY',
-      message: 'Token bucket 429 triggered: 1,240 req/s rate-limit activated',
-      ipMasked: '89.187.168.xx',
+      type: 'TARPIT',
+      message: 'Tarpit engaged (4.8s delay) on volumetric crawler cluster',
+      ipMasked: '45.154.255.xx',
+      asnType: 'DATACENTER',
+      reasons: ['datacenter network', 'Anomalous User-Agent'],
       severity: 'medium',
     },
     {
       id: 'evt_5',
       timestamp: '20:42:08',
-      type: 'REPLAY_BURNED',
-      message: 'Idempotency key reuse absorbed: duplicate checkout neutralized',
-      ipMasked: '103.251.167.xx',
-      severity: 'low',
+      type: 'POW_ESCALATION',
+      message: 'PoW difficulty escalated to 6 leading zeros for subnet 194.26.29.0/24',
+      ipMasked: '194.26.29.xx',
+      asnType: 'DATACENTER',
+      reasons: ['datacenter network', 'High IP subnet reuse'],
+      severity: 'high',
     },
     {
       id: 'evt_6',
       timestamp: '20:42:05',
       type: 'SEAT_ALLOCATED',
       message: 'Seat #412 confirmed for low-risk verified fan (Entropy score: 0.94)',
-      ipMasked: '24.120.45.xx',
+      ipMasked: '73.4.10.xx',
+      asnType: 'RESIDENTIAL',
       severity: 'good',
     },
   ]);
@@ -373,32 +386,65 @@ function AdminDashboardContent() {
         const eventTemplates: Array<Omit<SecurityEvent, 'id' | 'timestamp'>> = [
           {
             type: 'IP_PENALTY',
-            message: `IP bucket 429 triggered (${Math.floor(800 + Math.random() * 600)} req/s rejected)`,
-            ipMasked: `185.${Math.floor(100 + Math.random() * 150)}.${Math.floor(10 + Math.random() * 200)}.xx`,
+            message: 'Token bucket 429 triggered: Cloud datacenter flood detected',
+            ipMasked: `3.88.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'DATACENTER',
+            reasons: ['datacenter network', "timezone doesn't match location", 'High request rate'],
+            severity: 'high',
+          },
+          {
+            type: 'IP_PENALTY',
+            message: 'IP penalty applied: Anonymization proxy cluster rate-limited',
+            ipMasked: `185.220.${Math.floor(100 + Math.random() * 20)}.xx`,
+            asnType: 'VPN',
+            reasons: ['vpn or proxy network', 'High device fingerprint reuse'],
+            severity: 'medium',
+          },
+          {
+            type: 'IP_PENALTY',
+            message: 'Automated BotLab botnet node throttled and penalized',
+            ipMasked: `192.168.1.${Math.floor(1 + Math.random() * 50)}`,
+            asnType: 'DATACENTER',
+            reasons: ['datacenter network', 'BotLab simulated botnet cluster', 'Superhuman join reaction time'],
+            severity: 'high',
+          },
+          {
+            type: 'IP_PENALTY',
+            message: 'Geographic discrepancy: Reported timezone mismatches IP origin',
+            ipMasked: `86.130.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'RESIDENTIAL',
+            reasons: ["timezone doesn't match location", 'High request rate'],
             severity: 'medium',
           },
           {
             type: 'TARPIT',
             message: `Tarpit delay engaged: HTTP response delayed by ${(3 + Math.random() * 3).toFixed(1)}s`,
             ipMasked: `45.154.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'DATACENTER',
+            reasons: ['datacenter network', 'Anomalous User-Agent'],
             severity: 'medium',
           },
           {
             type: 'POW_ESCALATION',
             message: 'Adaptive proof-of-work puzzle difficulty escalated to 6 leading zeros',
             ipMasked: `194.26.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'DATACENTER',
+            reasons: ['datacenter network', 'High IP subnet reuse'],
             severity: 'high',
           },
           {
             type: 'SYBIL_BLOCKED',
             message: `Canvas fingerprint cluster collapsed: ${Math.floor(15 + Math.random() * 35)} headless bots denied`,
             ipMasked: `103.251.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'VPN',
+            reasons: ['vpn or proxy network', 'Prior abuse penalties'],
             severity: 'high',
           },
           {
             type: 'SEAT_ALLOCATED',
             message: `Seat inventory reservation secured by organic fan (Latency: ${Math.floor(18 + Math.random() * 35)}ms)`,
-            ipMasked: `72.14.${Math.floor(10 + Math.random() * 200)}.xx`,
+            ipMasked: `73.4.${Math.floor(10 + Math.random() * 200)}.xx`,
+            asnType: 'RESIDENTIAL',
             severity: 'good',
           },
         ];
@@ -940,12 +986,42 @@ function AdminDashboardContent() {
                         <span className="font-bold">{evt.type}</span>
                         <span>{evt.timestamp}</span>
                       </div>
-                      <div className="text-[11px] text-slate-200 leading-tight mt-0.5 break-words">
+                      <div className="text-[11px] text-slate-200 leading-tight mt-0.5 break-words font-medium">
                         {evt.message}
                       </div>
+
+                      {/* Source IP and Red ASN Type Badge */}
                       {evt.ipMasked && (
-                        <div className="text-[9px] text-slate-400 mt-0.5">
-                          Source: {evt.ipMasked}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400 mt-1 font-mono">
+                          <span>Source: <strong className="text-slate-300">{evt.ipMasked}</strong></span>
+                          {evt.asnType && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase ${
+                                evt.asnType.toUpperCase() === 'DATACENTER' ||
+                                evt.asnType.toUpperCase() === 'VPN' ||
+                                evt.asnType.toUpperCase() === 'VPN_PROXY'
+                                  ? 'bg-red-500/20 text-red-300 border border-red-500/40 shadow-sm shadow-red-500/20'
+                                  : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              }`}
+                            >
+                              [{evt.asnType.toUpperCase().replace('_', ' ')}]
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Specific Penalty Reasons from Network Signals Module */}
+                      {evt.reasons && evt.reasons.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 pt-1 border-t border-white/5">
+                          {evt.reasons.map((reason, rIdx) => (
+                            <span
+                              key={rIdx}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-red-500/15 text-red-300 border border-red-500/30"
+                            >
+                              <span className="w-1 h-1 rounded-full bg-red-400 shrink-0" />
+                              {reason}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>

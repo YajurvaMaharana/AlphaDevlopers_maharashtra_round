@@ -1,0 +1,93 @@
+[
+  {
+    "cidr": "192.168.1.0/24",
+    "asnType": "datacenter",
+    "name": "BotLab Simulated Botnet Cluster (Local Testbed)",
+    "country": "US",
+    "expectedTimezones": ["America/New_York", "America/Chicago", "UTC"]
+  },
+  {
+    "cidr": "10.0.0.0/8",
+    "asnType": "datacenter",
+    "name": "Internal Datacenter Private Subnet",
+    "country": "US",
+    "expectedTimezones": ["UTC", "America/Los_Angeles"]
+  },
+  {
+    "cidr": "172.16.0.0/12",
+    "asnType": "datacenter",
+    "name": "Container Cloud VPC Subnet",
+    "country": "US",
+    "expectedTimezones": ["UTC", "America/New_York"]
+  },
+  {
+    "cidr": "3.80.0.0/12",
+    "asnType": "datacenter",
+    "name": "Amazon Web Services (AWS EC2 us-east-1)",
+    "country": "US",
+    "expectedTimezones": ["America/New_York"]
+  },
+  {
+    "cidr": "35.184.0.0/13",
+    "asnType": "datacenter",
+    "name": "Google Cloud Platform (GCP us-central1)",
+    "country": "US",
+    "expectedTimezones": ["America/Chicago"]
+  },
+  {
+    "cidr": "20.190.0.0/16",
+    "asnType": "datacenter",
+    "name": "Microsoft Azure Infrastructure",
+    "country": "US",
+    "expectedTimezones": ["America/New_York", "America/Los_Angeles"]
+  },
+  {
+    "cidr": "185.220.100.0/22",
+    "asnType": "vpn_proxy",
+    "name": "Tor / Public Anonymization Relay Exit Node",
+    "country": "DE",
+    "expectedTimezones": ["Europe/Berlin"]
+  },
+  {
+    "cidr": "198.51.100.0/24",
+    "asnType": "vpn_proxy",
+    "name": "Commercial VPN Service Relay",
+    "country": "CH",
+    "expectedTimezones": ["Europe/Zurich"]
+  },
+  {
+    "cidr": "73.0.0.0/8",
+    "asnType": "residential",
+    "name": "Comcast Cable Communications Residential",
+    "country": "US",
+    "expectedTimezones": [
+      "America/New_York",
+      "America/Chicago",
+      "America/Denver",
+      "America/Los_Angeles",
+      "America/Detroit",
+      "America/Indiana/Indianapolis"
+    ]
+  },
+  {
+    "cidr": "103.21.124.0/22",
+    "asnType": "residential",
+    "name": "Reliance Jio Infocomm Residential Broadband",
+    "country": "IN",
+    "expectedTimezones": ["Asia/Kolkata", "Asia/Calcutta"]
+  },
+  {
+    "cidr": "86.128.0.0/10",
+    "asnType": "residential",
+    "name": "BT Group UK Consumer Broadband",
+    "country": "GB",
+    "expectedTimezones": ["Europe/London", "GMT", "UTC"]
+  },
+  {
+    "cidr": "133.0.0.0/10",
+    "asnType": "residential",
+    "name": "NTT Communications Japan Residential",
+    "country": "JP",
+    "expectedTimezones": ["Asia/Tokyo"]
+  }
+]
