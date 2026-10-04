@@ -35,7 +35,11 @@ import {
   AdminChaosRequest,
   AdminChaosResponse,
   AppError,
-  createAppError
+  createAppError,
+  computeDropDraw,
+  buildMerkleTree,
+  computeAllocationLeaf,
+  sha256
 } from '@fairdrop/shared';
 
 const isMock = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true' || process.env.NEXT_PUBLIC_MOCK === '1';
@@ -59,7 +63,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (!response.ok) {
       // If 404 or backend unavailable, provide resilient mock fallback in demo mode
       if (response.status === 404 || response.status >= 500) {
-        const fallback = getFallbackResponse<T>(path, options);
+        const fallback = await getFallbackResponse<T>(path, options);
         if (fallback !== null) {
           return fallback;
         }
@@ -75,7 +79,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
     return data as T;
   } catch (err: any) {
-    const fallback = getFallbackResponse<T>(path, options);
+    const fallback = await getFallbackResponse<T>(path, options);
     if (fallback !== null) {
       return fallback;
     }
@@ -83,7 +87,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
-function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | null {
+const PARTICIPANTS_POOL = [
+  'usr_mock_001',
+  'usr_low_fan',
+  'usr_med_vpn',
+  'usr_high_bot',
+  'alex.rivers@example.com',
+  'fan@example.com'
+];
+
+async function getFallbackResponse<T>(path: string, options: RequestInit = {}): Promise<T | null> {
   const normalizedPath = path.toLowerCase();
   let bodyObj: any = {};
   try {
@@ -244,9 +257,10 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
   }
 
   if (normalizedPath.includes('/drop/commitment')) {
+    const draw = await computeDropDraw('fairdrop-main-2026', PARTICIPANTS_POOL);
     return {
       dropId: 'fairdrop-main-2026',
-      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
+      commitment: draw.commitment,
       algorithm: 'SHA-256',
       publishedAt: Date.now() - 3600000,
       description: 'SHA-256 cryptographic commitment of the random seed published before the drop.'
@@ -254,20 +268,25 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
   }
 
   if (normalizedPath.includes('/drop/proof')) {
+    const userId = bodyObj.userId || 'usr_mock_001';
+    const pool = Array.from(new Set([...PARTICIPANTS_POOL, userId]));
+    const draw = await computeDropDraw('fairdrop-main-2026', pool);
+    const tree = await buildMerkleTree(pool, draw.ranks);
+    const rank = draw.ranks.get(userId) || 40;
+    const seatNumber = rank;
+    const leafHash = await computeAllocationLeaf(userId, rank, seatNumber);
+    const merkleProof = tree.proofs.get(userId) || [];
+
     return {
       dropId: 'fairdrop-main-2026',
-      userId: 'usr_mock_001',
-      revealedSeed: 'fairdrop_seed_valid_99',
-      commitment: 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22',
-      merkleRoot: '4693ce2ea5d4f7181438ed362d6b3b1a9ee93d43b34dff634de08e4e512b1296',
-      merkleProof: [
-        '1283cbd3042c06ca007827821a45bcd9e2560f908609104b252ae1c3f30ae91d',
-        '954c4755fae8466b8fdbbd0299d73218a109bb2e98e107e1716b4f8303b420ec',
-        'b110fb2631f60193c1a411352c752ee7f12fe312341640cb9c84dc4ed9472917'
-      ],
-      userRank: 40,
-      seatNumber: 40,
-      leafHash: '402168f86f771c76a8147a85be313df34a09913d6e724d2b8c689c9c5974d9a5',
+      userId,
+      revealedSeed: draw.seed,
+      commitment: draw.commitment,
+      merkleRoot: tree.root,
+      merkleProof,
+      userRank: rank,
+      seatNumber,
+      leafHash,
       isVerified: true
     } as unknown as T;
   }
@@ -301,39 +320,42 @@ function getFallbackResponse<T>(path: string, options: RequestInit = {}): T | nu
 
   if (normalizedPath.includes('/receipt/')) {
     const id = path.split('/').pop() || 'rcpt_default';
-    const timestamp = Date.now() - 60000;
-    const allocationId = id;
-    const batchId = 'batch_42';
-    const lane = 'low';
-    const commitment = 'f523ea1e8240d8bcf77e6b3dea366b49511cb0d6c25c34a993a9fdac772eee22';
+    const userId = 'usr_mock_001';
+    const pool = PARTICIPANTS_POOL;
+    const draw = await computeDropDraw('fairdrop-main-2026', pool);
+    const tree = await buildMerkleTree(pool, draw.ranks);
+    const rank = draw.ranks.get(userId) || 42;
+    const seatNumber = rank;
+    const leafHash = await computeAllocationLeaf(userId, rank, seatNumber);
+    const merkleProof = tree.proofs.get(userId) || [];
+
     return {
       receiptId: id,
       orderId: `ord_${Date.now().toString(36).slice(0, 8)}`,
       dropId: 'fairdrop-main-2026',
-      seatNumbers: [42],
-      buyerName: 'Verified Fan',
-      buyerEmail: 'fan@fairdrop.io',
-      paidAt: timestamp,
+      seatNumbers: [seatNumber],
+      buyerName: 'Alex Rivers',
+      buyerEmail: 'alex.rivers@example.com',
+      paidAt: Date.now() - 60000,
       amountCents: 9900,
       currency: 'USD',
-      txHash: '0x498a9b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0',
-      merkleProof: [
-        '1283cbd3042c06ca007827821a45bcd9e2560f908609104b252ae1c3f30ae91d',
-        '954c4755fae8466b8fdbbd0299d73218a109bb2e98e107e1716b4f8303b420ec'
-      ],
-      qrCodeUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>',
-      allocationId,
-      rank: 42,
+      txHash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
+      merkleProof,
+      merkleRoot: tree.root,
+      commitment: draw.commitment,
+      revealedSeed: draw.seed,
+      qrCodeUrl: `/verify?receipt=${id}`,
+      allocationId: `alloc_fd_${id.slice(-8)}`,
+      rank,
       riskTier: 'low',
       riskLane: 'low-risk lane',
       authMethod: 'google',
-      batchId,
-      batchNumber: 42,
+      batchId: 'batch_42',
+      batchNumber: rank,
       stepUpRequired: false,
       explanation: 'Verified with Google, low-risk lane, randomized batch #42, zero step-up challenges required',
-      fairHash: 'a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8',
-      emailHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-      commitment
+      fairHash: leafHash,
+      emailHash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
     } as unknown as T;
   }
 

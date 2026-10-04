@@ -181,6 +181,7 @@ function VerifyContent() {
     // STEP 1: Commit-Reveal check (delay ~400ms for visual verification flow)
     await new Promise((r) => setTimeout(r, 450));
     const step1Result = await verifyCommitment(seedInput, proofData.commitment);
+    console.log('Verification Step 1 (Commitment Hash):', step1Result);
 
     setVerifyState((prev) => ({
       ...prev,
@@ -195,6 +196,7 @@ function VerifyContent() {
       seedInput,
       rankInput
     );
+    console.log('Verification Step 2 (Shuffle Reproduces Rank):', step2Result);
 
     setVerifyState((prev) => ({
       ...prev,
@@ -210,6 +212,7 @@ function VerifyContent() {
       receiptData.seatNumbers?.[0] || 42
     );
     const step3Result = await verifyMerkleProof(leaf, proofArray, proofData.merkleRoot);
+    console.log('Verification Step 3 (Merkle Inclusion):', step3Result);
 
     const totalElapsed = Math.round((performance.now() - startTotal) * 100) / 100;
     const allPassed = step1Result.passed && step2Result.passed && step3Result.passed;
